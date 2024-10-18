@@ -1,0 +1,291 @@
+[
+    {
+        "questions": [
+            {
+                "question": "Think about your college life outside of classes. Which scene feels like 'you'?",
+                "options": [
+                    {
+                        "id": "eb8ae318-fd73-4bbf-89ff-a8685a0bfcf6",
+                        "option": "Engaging in workshops that help you learn new skills."
+                    },
+                    {
+                        "id": "61b3018a-e9db-4b0a-ab2c-0d2803fa7c56",
+                        "option": "Discovering new cafes and hidden spots around campus."
+                    },
+                    {
+                        "id": "934dcb81-0944-4db5-b279-f83a5e0e5f70",
+                        "option": "Attending college festivals and bonding with peers."
+                    },
+                    {
+                        "id": "5b808794-09c8-423e-8517-93805ff6999b",
+                        "option": "Relaxing in your dorm room with a good book or game."
+                    }
+                ]
+            },
+            {
+                "question": "You’re in your first year of college, and there’s an opportunity to explore new horizons. What excites you the most?",
+                "options": [
+                    {
+                        "id": "b7c4df0b-fad7-4ab9-b857-19538094fe59",
+                        "option": "A research internship at a top firm."
+                    },
+                    {
+                        "id": "1065277d-0c1b-4083-a380-3c95876741bc",
+                        "option": "Participating in a student-run club or society."
+                    },
+                    {
+                        "id": "c0aa48e0-b70f-471c-8d0e-b5d913eaad15",
+                        "option": "A semester exchange program in another country."
+                    },
+                    {
+                        "id": "3954dc88-5af2-4622-80a9-d0bfa0cc4335",
+                        "option": "Working closely with professors on an exciting project."
+                    }
+                ]
+            },
+            {
+                "question": "Imagine you’re flipping through a college brochure. Which headline catches your attention the most?",
+                "options": [
+                    {
+                        "id": "b49c9002-c125-42fe-8d99-f2a5fede9848",
+                        "option": "Explore the World of Science and Innovation!"
+                    },
+                    {
+                        "id": "56f2146c-17f7-4d41-9ec7-b32a5d3dde2a",
+                        "option": "Unleash Your Creativity with Our Design Programs!"
+                    },
+                    {
+                        "id": "ecd9a876-7a89-4e89-b210-70768ace784c",
+                        "option": "Delve into Culture and Society with Our Humanities Studies!"
+                    },
+                    {
+                        "id": "21531630-cd94-4306-be43-f8f261a9e953",
+                        "option": "Become a Business Leader with Our Management Courses!"
+                    }
+                ]
+            },
+            {
+                "question": "Your college offers an extra opportunity to make your journey special. Which one would you choose?",
+                "options": [
+                    {
+                        "id": "5ecd16ad-5340-4cf8-a775-08a7991f4b00",
+                        "option": "An in-depth project that lets you dive deeper into your major."
+                    },
+                    {
+                        "id": "8c78ec7c-8473-4d3f-8d55-fa87dfdca9de",
+                        "option": "A short course that lets you explore a new interest."
+                    },
+                    {
+                        "id": "6dd871be-32ca-423d-abc5-ab15ce98ee7e",
+                        "option": "A certification course that complements your studies."
+                    },
+                    {
+                        "id": "dd8dba5f-02e6-49a2-b68e-2c0dc6bf26d1",
+                        "option": "An intensive workshop that provides hands-on experience."
+                    }
+                ]
+            },
+            {
+                "question": "You’ve got a free afternoon at college. Where are you most likely to spend your time?",
+                "options": [
+                    {
+                        "id": "94477d50-28e0-4e9e-ae72-156d86c64291",
+                        "option": "In a study circle discussing global history."
+                    },
+                    {
+                        "id": "bcb174e1-2988-41bf-954c-c07f994cb41a",
+                        "option": "In the art studio, creating something unique."
+                    },
+                    {
+                        "id": "b55032c9-1a37-4754-8e4e-1b097c85296c",
+                        "option": "In a networking session with entrepreneurs."
+                    },
+                    {
+                        "id": "1927d0ac-555b-4071-ad60-9f0a2ba949b4",
+                        "option": "In a high-tech lab, experimenting with new ideas."
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "questions": [
+            {
+                "question": "If you haven't yet taken the EmSAT/SAT, can you still apply for admission to IIT Delhi - Abu Dhabi?",
+                "options": [
+                    {
+                        "id": "c914d493-d703-4b65-a6a1-e2b92618f883",
+                        "option": "Yes, but you must indicate 'yet to appear' during registration and submit a valid score before selection."
+                    },
+                    {
+                        "id": "ea60de47-9c36-42c1-a1de-6420f2badb30",
+                        "option": "No, the test score is optional for CAET."
+                    },
+                    {
+                        "id": "8258fa98-c4a3-45c0-b777-148d963c70c5",
+                        "option": "Yes, but the score is not required for admission."
+                    },
+                    {
+                        "id": "270e448b-41e3-42f5-9829-c87ad2cca35f",
+                        "option": "No, you must have a valid score at the time of registration."
+                    }
+                ]
+            },
+            {
+                "question": "What makes Abu Dhabi a great place for students at IIT Delhi - Abu Dhabi?",
+                "options": [
+                    {
+                        "id": "e305b2c4-8342-48ce-b580-f009ec7495ed",
+                        "option": "It is a bustling city with limited cultural experiences."
+                    },
+                    {
+                        "id": "740d17be-faa5-42e3-ae03-152358c4fb30",
+                        "option": "The climate is cold and restrictive."
+                    },
+                    {
+                        "id": "3d132b90-fe89-47ec-a54f-9a08388630c5",
+                        "option": "Abu Dhabi is known for its safety, vibrant lifestyle, and rich cultural tapestry, making it ideal for students."
+                    },
+                    {
+                        "id": "e8615d61-8b6f-4550-98db-f66acb60f276",
+                        "option": "It is a secluded location with minimal international community presence."
+                    }
+                ]
+            },
+            {
+                "question": "Which of the following options are acceptable for undergraduate admission to IIT Delhi - Abu Dhabi? (Select all that apply)",
+                "options": [
+                    {
+                        "id": "abd6deef-881a-4869-b074-ba8b54d5d323",
+                        "option": "Students who have a valid EmSAT/SAT score."
+                    },
+                    {
+                        "id": "1f4dd6ec-c8a2-47a3-96b5-652f2e9b7f26",
+                        "option": "Students who haven't taken an English proficiency test yet but will provide a score in their first semester."
+                    },
+                    {
+                        "id": "8c68f4e5-cffe-499c-adb2-06c3195c054f",
+                        "option": "Students who have appeared for the CAET 2024."
+                    },
+                    {
+                        "id": "65f56eb3-3bf4-4e43-ac88-936467be11b2",
+                        "option": "Students who have completed their K-12 education in an English-medium institution."
+                    }
+                ]
+            },
+            {
+                "question": "Which of the following best describes student life at IIT Delhi - Abu Dhabi?",
+                "options": [
+                    {
+                        "id": "0eecdb95-2759-4d3b-9c2c-31118c87b7d4",
+                        "option": "Only online resources are available without any on-campus engagement."
+                    },
+                    {
+                        "id": "fbfd43b4-ebad-42b2-872e-5254cbb76797",
+                        "option": "It is purely focused on academics without extracurricular activities."
+                    },
+                    {
+                        "id": "39b58dd5-5170-4331-8296-0e934df0ae60",
+                        "option": "Students have access to cultural events, inter-IIT competitions, and enriching academic resources."
+                    },
+                    {
+                        "id": "3e5c57b3-f5bf-44a1-bfd5-497f79592b07",
+                        "option": "There are limited opportunities for social engagement."
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "questions": [
+            {
+                "question": "If you could choose a nickname for yourself, what would it be?",
+                "options": []
+            },
+            {
+                "question": "When you think about college, which scene resonates with you the most?",
+                "options": [
+                    {
+                        "id": "d24877f2-b0c9-43fb-ac2c-248de9d64534",
+                        "option": "Working on a solo assignment in a quiet library."
+                    },
+                    {
+                        "id": "0e64b2bf-2160-4ecb-a28e-9560a26aaa83",
+                        "option": "Presenting a project with a group of classmates."
+                    },
+                    {
+                        "id": "ef3644f7-676d-4198-a03e-1cb09dfb0eff",
+                        "option": "Leading a team in a sports competition."
+                    },
+                    {
+                        "id": "552220a9-07f2-47c8-9685-4f4dfdef6b52",
+                        "option": "Volunteering at a community service event."
+                    }
+                ]
+            },
+            {
+                "question": "You just got accepted into your dream school! What’s the first thing you’d like your new classmates to know about you?",
+                "options": [
+                    {
+                        "id": "4e4178df-96f0-46b9-962f-285109b6de3f",
+                        "option": "I love being part of team activities."
+                    },
+                    {
+                        "id": "ed573615-1791-40f1-85c2-ff126c3f4680",
+                        "option": "I prefer working on my own."
+                    },
+                    {
+                        "id": "6b14782e-2420-4bf4-910f-bad925ddcc1d",
+                        "option": "I’m passionate about helping out in the community."
+                    },
+                    {
+                        "id": "979d5bfe-5327-43b7-a544-9e41dcc60be0",
+                        "option": "I’m always up for a sports challenge."
+                    }
+                ]
+            },
+            {
+                "question": "Picture your perfect weekend activity at school. What would you choose?",
+                "options": [
+                    {
+                        "id": "5a9ca194-e899-483b-95f0-f1e99fb1f74f",
+                        "option": "Joining a study group to prepare for an upcoming exam."
+                    },
+                    {
+                        "id": "0f079edb-9561-4e67-aeba-cc870faad6b4",
+                        "option": "Heading to the gym or participating in a sports event."
+                    },
+                    {
+                        "id": "41cef0db-64e1-41e8-a796-8b223e848cf3",
+                        "option": "Attending a local cultural event or community meetup."
+                    },
+                    {
+                        "id": "7ece89f9-fac1-433d-a2a5-e3c631a7e796",
+                        "option": "Spending time reading or working on a personal project."
+                    }
+                ]
+            },
+            {
+                "question": "Imagine you’re in a classroom filled with students from different programs. Which group do you see yourself sitting with?",
+                "options": [
+                    {
+                        "id": "6a2b91c8-7b0f-45e4-9cd9-2ef4e2796272",
+                        "option": "The students working on hands-on technical projects."
+                    },
+                    {
+                        "id": "2b2d41ba-782f-484c-b5d4-7049ace1a699",
+                        "option": "Those discussing the latest scientific discoveries."
+                    },
+                    {
+                        "id": "ad26cda1-2ada-4a69-88bc-3f7daa5b6d88",
+                        "option": "The group planning a business pitch or discussing the stock market."
+                    },
+                    {
+                        "id": "4ad246f7-b248-4819-80e8-5514e74e6a3a",
+                        "option": "The ones sketching and talking about new art trends."
+                    }
+                ]
+            }
+        ]
+    }
+]
