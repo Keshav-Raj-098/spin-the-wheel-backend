@@ -85,17 +85,14 @@ const getAllUsers = async (req, res) => {
     try {
         // Fetch all users from the database
         const users = await prisma.user.findMany({
-            include: {
-                answer: {
-                    select: {
-                        form1: true,
-                        form2: true,
-                        form3: true,
-                    },
-                },
-            },
+          select: {
+            name: true,    // Scalar fields like name
+            gender: true,  // Optional scalar field
+            age: true,     // Optional scalar field
+            points: true,  // Scalar field
+          },
         });
-
+        
         // Return the users in the response
         res.status(200).json(users);
     } catch (error) {
@@ -322,9 +319,6 @@ const updateOption = async (req, res) => {
                 select: {
                   option: true, // Extracting option text
                   markedCount: true, // Include markedCount
-                },
-                orderBy: {
-                  createdAt: 'asc', // Order options by earliest created first
                 },
               },
             },

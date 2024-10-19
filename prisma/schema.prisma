@@ -14,51 +14,53 @@ model user {
   gender        String?
   age           String?
   points        Int           @default(0)
-  markedOptions UserOptions[] // Relation to UserOptions
+  markedOptions UserOptions[] // Relation to UserOptions for tracking marked options
 }
 
 model admin {
-  id        String  @id @unique @default(uuid())
-  username  String  @unique
-  password  String
-  forms     Form[]  // One-to-many relation with Form
+  id       String @id @unique @default(uuid())
+  username String @unique
+  password String
+  forms    Form[] // One-to-many relation with Form
 }
 
 model Form {
-  id         String      @id @unique @default(uuid())
-  adminId    String
-  admin      admin       @relation(fields: [adminId], references: [id])
-  questions  Question[]  // One-to-many relationship with Question
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  id        String     @id @unique @default(uuid())
+  adminId   String
+  admin     admin      @relation(fields: [adminId], references: [id])
+  questions Question[] // One-to-many relationship with Question
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
 }
 
 model Question {
-  id        String    @id @unique @default(uuid())
-  question  String
-  options   Options[] // One-to-many relationship with Options
-  formId    String
-  form      Form      @relation(fields: [formId], references: [id])  // Link each question to a form
-  createdAt DateTime  @default(now()) 
+  id          String        @id @unique @default(uuid())
+  question    String
+  options     Options[] // One-to-many relationship with Options
+  formId      String
+  form        Form          @relation(fields: [formId], references: [id]) // Link each question to a form
+  createdAt   DateTime      @default(now())
+  UserOptions UserOptions[]
 }
 
 model Options {
-  id          String      @id @unique @default(uuid())
+  id          String        @id @unique @default(uuid())
   option      String
   questionId  String
-  question    Question    @relation(fields: [questionId], references: [id])
-  markedCount Int         @default(0) // Field to track the number of times the option is marked
+  question    Question      @relation(fields: [questionId], references: [id]) // Link each option to a question
+  markedCount Int           @default(0) // Track how many times the option is marked
   markedBy    UserOptions[] // Relation to UserOptions for many-to-many with user
-  createdAt   DateTime    @default(now())
+  createdAt   DateTime      @default(now())
 }
 
 model UserOptions {
-  id        String  @id @unique @default(uuid())
-  userId    String
-  user      user    @relation(fields: [userId], references: [id])
-  optionId  String
-  option    Options @relation(fields: [optionId], references: [id])
-  
+  id         String   @id @unique @default(uuid())
+  userId     String
+  user       user     @relation(fields: [userId], references: [id])
+  optionId   String
+  option     Options  @relation(fields: [optionId], references: [id])
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id]) // Relate to the question
 
-  @@unique([userId, optionId]) // To ensure a unique combination of user and option
+  @@unique([userId, questionId]) // Ensure user can only mark one option per question
 }

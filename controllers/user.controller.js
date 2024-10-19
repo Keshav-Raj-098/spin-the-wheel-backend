@@ -95,72 +95,74 @@ const updateUserPoints = async (req, res) => {
 
 // markoption
 const markOption = async (req, res) => {
-    const { userId, optionId } = req.params;
-  
-    try {
-      // Start a transaction
-      const result = await prisma.$transaction(async (prisma) => {
-        // Check if the user and option exist
-        const userExists = await prisma.user.findUnique({
-          where: { id: userId }
-        });
-        if (!userExists) {
-          throw new Error("User not found");
-        }
-  
-        const optionExists = await prisma.options.findUnique({
-          where: { id: optionId }
-        });
-        if (!optionExists) {
-          throw new Error("Option not found");
-        }
-  
-        // Check if the user has already marked this option
-        const alreadyMarked = await prisma.userOptions.findUnique({
-          where: {
-            userId_optionId: {
-              userId,
-              optionId
-            }
-          }
-        });
-  
-        if (alreadyMarked) {
-          return res.status(401).json({
-            message: "Option has already been marked by the user"})
-          ;
-        }
-  
-        // Create the record in the UserOptions table
-        const markedOption = await prisma.userOptions.create({
-          data: {
-            userId,
-            optionId
-          }
-        });
-  
-        // Increment the markedCount for the option
-        await prisma.options.update({
-          where: { id: optionId },
-          data: {
-            markedCount: {
-              increment: 1
-            }
-          }
-        });
-  
-        return {
-          message: "Option marked successfully",
-          markedOption
-        };
+  const { userId } = req.params;
+  const { optionId, questionId } = req.body;
+
+  try {
+    // Start a transaction
+    const result = await prisma.$transaction(async (prisma) => {
+      // Check if the user exists
+      const userExists = await prisma.user.findUnique({
+        where: { id: userId }
       });
-  
-      return res.status(200).json(result);
-    } catch (error) {
-      console.error(error);
-      return res.status(500).json({ message: "Failed to mark option", error: error.message });
-    }
-  };
+      if (!userExists) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Check if the option exists
+      const optionExists = await prisma.options.findUnique({
+        where: { id: optionId }
+      });
+      if (!optionExists) {
+        return res.status(404).json({ message: "Option not found" });
+      }
+
+      // Check if the user has already marked any option for this question
+      const alreadyMarkedForQuestion = await prisma.userOptions.findUnique({
+        where: {
+          userId_questionId: {  // This assumes you have a composite unique constraint on (userId, questionId)
+            userId,
+            questionId
+          }
+        }
+      });
+
+      if (alreadyMarkedForQuestion) {
+        return res.status(400).json({ message: "User has already marked an option for this question" });
+      }
+
+      // Create the record in the UserOptions table with the questionId
+      const markedOption = await prisma.userOptions.create({
+        data: {
+          userId,
+          optionId,
+          questionId
+        }
+      });
+
+      // Increment the markedCount for the option
+      await prisma.options.update({
+        where: { id: optionId },
+        data: {
+          markedCount: {
+            increment: 1
+          }
+        }
+      });
+
+      return {
+        message: "Option marked successfully",
+        markedOption
+      };
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Failed to mark option", error: error.message });
+  }
+};
+
   
 
 const getForms = async (req, res) => {
@@ -194,6 +196,7 @@ const getForms = async (req, res) => {
       const formattedForms = forms.map(form => ({
         questions: form.questions.map(question => ({
           question: question.question,
+          questionId:question.id,  
           options: question.options.map(option => ({
             id: option.id, // Include option ID
             option: option.option, // Extracting option text
@@ -206,7 +209,7 @@ const getForms = async (req, res) => {
       console.error('Error fetching forms:', error);
       res.status(500).json({ error: 'Internal Server Error' });
     }
-  }
+}
   
   
   
