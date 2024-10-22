@@ -1,5 +1,7 @@
 import { prisma } from "../prisma/prisma.js";
 import bcrypt from 'bcrypt';
+import {tasks,scheduleTask} from "./scehduleFunctions.js"
+
 
 
 // Function to create an admin
@@ -221,96 +223,6 @@ const updateQuestion = async (req, res) => {
   }
 };
 
-const deleteForm = async (req, res) => {
-  try {
-    const { formId } = req.params; // Form ID from URL params
-
-    // Step 1: Check if the form exists
-    const form = await prisma.form.findUnique({
-      where: { id: formId },
-      include: {
-        questions: true, // Ensure that questions are included to verify form integrity
-      }
-    });
-
-    if (!form) {
-      return res.status(404).json({ message: "No form found with the provided ID" });
-    }
-
-    const questionIds = form.questions.map((q) => q.id);
-
-    // Step 2: Remove the form ID from all users who have completed the form (formDone array)
-    await prisma.user.updateMany({
-      where: {
-        formDone: {
-          has: formId // Users who have this formId in their formDone array
-        }
-      },
-      data: {
-        formDone: {
-          set: [] // Clear the array before applying the filter
-        }
-      }
-    });
-
-    // Update the users' formDone array by filtering out the deleted form ID
-    await prisma.user.updateMany({
-      where: {
-        formDone: {
-          has: formId
-        }
-      },
-      data: {
-        formDone: {
-          set: formDone.filter(f => f !== formId) // Remove formId from the array
-        }
-      }
-    });
-
-    // Step 3: Delete the related user responses (UserQuestion) for each question in the form
-    await prisma.userQuestion.deleteMany({
-      where: {
-        questionId: {
-          in: questionIds
-        }
-      }
-    });
-
-    // Step 4: Delete all options linked to the questions of this form
-    await prisma.options.deleteMany({
-      where: {
-        questionId: {
-          in: questionIds
-        }
-      }
-    });
-
-    // Step 5: Delete all questions related to the form
-    await prisma.question.deleteMany({
-      where: {
-        formId: formId
-      }
-    });
-
-    // Step 6: Finally, delete the form itself
-    await prisma.form.delete({
-      where: { id: formId }
-    });
-
-    // Response on successful deletion
-    res.status(200).json({ message: "Form and all related questions, options, user responses, and user form records deleted successfully" });
-  } catch (error) {
-    console.error(error);
-
-    // Check for specific errors and respond accordingly
-    if (error.code === 'P2003') { // Foreign key constraint violation
-      return res.status(400).json({ message: "Cannot delete form due to existing references" });
-    }
-
-    res.status(500).json({ message: "Error deleting form", error: error.message });
-  }
-};
-
 
 const getForms = async (req, res) => {
   const { adminId } = req.params; // Assuming you have admin ID from the authenticated user
@@ -406,7 +318,140 @@ const getFormsWithIds = async (req, res) => {
   }
 }
 
+const deleteForm = async (req, res) => {
+  try {
+    const { formId } = req.params; // Form ID from URL params
+
+    // Step 1: Check if the form exists
+    const form = await prisma.form.findUnique({
+      where: { id: formId },
+      include: {
+        questions: true, // Ensure that questions are included to verify form integrity
+      }
+    });
+
+    if (!form) {
+      return res.status(404).json({ message: "No form found with the provided ID" });
+    }
+
+    const questionIds = form.questions.map((q) => q.id);
+
+    // Step 2: Remove the form ID from all users who have completed the form (formDone array)
+    await prisma.user.updateMany({
+      where: {
+        formDone: {
+          has: formId // Users who have this formId in their formDone array
+        }
+      },
+      data: {
+        formDone: {
+          set: [] // Clear the array before applying the filter
+        }
+      }
+    });
+
+    // Update the users' formDone array by filtering out the deleted form ID
+    await prisma.user.updateMany({
+      where: {
+        formDone: {
+          has: formId
+        }
+      },
+      data: {
+        formDone: {
+          set: formDone.filter(f => f !== formId) // Remove formId from the array
+        }
+      }
+    });
+
+    // Step 3: Delete the related user responses (UserQuestion) for each question in the form
+    await prisma.userQuestion.deleteMany({
+      where: {
+        questionId: {
+          in: questionIds
+        }
+      }
+    });
+
+    // Step 4: Delete all options linked to the questions of this form
+    await prisma.options.deleteMany({
+      where: {
+        questionId: {
+          in: questionIds
+        }
+      }
+    });
+
+    // Step 5: Delete all questions related to the form
+    await prisma.question.deleteMany({
+      where: {
+        formId: formId
+      }
+    });
+
+    // Step 6: Finally, delete the form itself
+    await prisma.form.delete({
+      where: { id: formId }
+    });
+
+    // Response on successful deletion
+    res.status(200).json({ message: "Form and all related questions, options, user responses, and user form records deleted successfully" });
+  } catch (error) {
+    console.error(error);
+
+    // Check for specific errors and respond accordingly
+    if (error.code === 'P2003') { // Foreign key constraint violation
+      return res.status(400).json({ message: "Cannot delete form due to existing references" });
+    }
+
+    res.status(500).json({ message: "Error deleting form", error: error.message });
+  }
+};
 
 
 
-export { registerAdmin, loginAdmin, resetLeaderBoard, getAllUsers, addForm, updateQuestion, updateOption, deleteForm, getForms, getFormsWithIds }
+const putTimer = async (req, res) => {
+  const { adminId } = req.params;
+  const { tasksData } = req.body;
+
+  try {
+    if (!adminId) {
+      return res.status(400).json({ error: 'adminId is required' });
+    }
+
+    if (!Array.isArray(tasksData) || tasksData.length === 0) {
+      return res.status(400).json({ error: 'Tasks data must be a non-empty array' });
+    }
+
+    tasksData.forEach((taskData) => {
+      // Validate each task
+      if (!taskData.durationValue || !taskData.durationUnit || !taskData.startTime || !taskData.functionToRun) {
+        throw new Error('Task data is incomplete');
+      }
+
+      const task = {
+        ...taskData,
+        adminId: adminId,
+        isCompleted: false,
+      };
+
+      tasks.push(task); // Push task into the tasks array or store in DB
+
+      try {
+        scheduleTask(task); // Function that schedules the task
+      } catch (err) {
+        console.error(`Error scheduling task: ${task.functionToRun}`, err);
+        throw new Error(`Failed to schedule task: ${task.functionToRun}`);
+      }
+    });
+
+    res.status(201).json({ message: 'Tasks scheduled successfully' });
+
+  } catch (err) {
+    console.error('Error in scheduling tasks:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
+export { registerAdmin, loginAdmin, resetLeaderBoard, getAllUsers, addForm, updateQuestion, updateOption, deleteForm, getForms, getFormsWithIds,putTimer }

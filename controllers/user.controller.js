@@ -35,8 +35,11 @@ const UserAuth = async (req, res) => {
         return res.status(404).json({ message: "User found, but name does not match" });
       }
 
+      // Ensure existingUser.formDone is an array
+      const userFormDone = Array.isArray(existingUser.formDone) ? existingUser.formDone : [];
+
       // Get uncompleted form IDs
-      const uncompletedFormIds = await getUncompletedForms(existingUser.formDone);
+      const uncompletedFormIds = await getUncompletedForms(userFormDone);
 
       // Destructure user data to exclude formDone
       const { formDone, ...userDetails } = existingUser;
@@ -82,6 +85,7 @@ const UserAuth = async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
+
 
 
 // Update Points
