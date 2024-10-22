@@ -23,7 +23,21 @@ model admin {
   username String @unique
   password String
   forms    Form[]
+  task     Task[]
 }
+
+model Task {
+  id            Int      @id @default(autoincrement())
+  adminId       String
+  functionToRun String   // Identifier of the function to run
+  startTime     DateTime // When the function should start
+  durationValue Int      // Duration value (e.g., 2, 3, etc.)
+  durationUnit  String    // Duration unit (e.g., 'minutes', 'hours', 'days')
+  admin     admin      @relation(fields: [adminId], references: [id])
+  isCompleted   Boolean  @default(false)
+}
+
+
 
 model Form {
   id        String     @id @unique @default(uuid())
