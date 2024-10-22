@@ -1,8 +1,7 @@
 import cron from 'node-cron';
-import { addMinutes, isAfter } from 'date-fns';
+import { prisma } from "../prisma/prisma.js"; // Assuming you're using Prisma ORM
 
-
-export const tasks = [];
+export const tasks = {}; // Using an object to store active cron jobs
 
 const convertDurationToMilliseconds = (value, unit) => {
   switch (unit) {
@@ -17,14 +16,12 @@ const convertDurationToMilliseconds = (value, unit) => {
   }
 };
 
-// Function map for easier function execution
 const functionMap = {
-  runFunction1: () => {
-    console.log('Running function 1');
+  sendReminderEmail: () => {
+    console.log('Sending reminder email');
   },
   runFunction2: () => {
     console.log('Running function 2');
-    // Your logic for function 2
   }
 };
 
@@ -38,38 +35,94 @@ const runTaskFunction = (functionName) => {
 };
 
 export const scheduleTask = (task) => {
-    const { startTime, durationValue, durationUnit } = task;
-    const taskTimeInMilliseconds = convertDurationToMilliseconds(durationValue, durationUnit);
-    const taskExecutionTime = new Date(startTime).getTime() + taskTimeInMilliseconds;
-  
-    console.log(taskExecutionTime);
-    
-    console.log(`Scheduled Execution Time: ${new Date(taskExecutionTime)}`);
-    
-    const cronJob = cron.schedule('* * * * *', () => {
-      const now = Date.now();
-      console.log("Current Time:", new Date(now).toISOString());
-  
-      // Check if task's execution time has passed
-      if (taskExecutionTime < now) {
-        console.log(`Task's execution time has passed: ${task.functionToRun}`);
-        task.isCompleted = true;
-        cronJob.stop();
-        return;
-      }
-  
-      // Check if it is time to run the task
-      if (now >= taskExecutionTime && !task.isCompleted) {
-        console.log(`Running task: ${task.functionToRun}`);
-        runTaskFunction(task.functionToRun);
-        task.isCompleted = true;
-        cronJob.stop();
-      } else if (task.isCompleted) {
-        console.log(`Task already completed: ${task.functionToRun}`);
-        cronJob.stop();
-      } else {
-        console.log("Task not yet ready");
-      }
+  const { startTime, durationValue, durationUnit, adminId, functionToRun } = task;
+  const taskTimeInMilliseconds = convertDurationToMilliseconds(durationValue, durationUnit);
+  const taskExecutionTime = new Date(startTime).getTime() + taskTimeInMilliseconds;
+
+  console.log(`Scheduled Execution Time: ${new Date(taskExecutionTime)}`);
+
+  // Stop any previous cron job for this task
+  if (tasks[adminId + functionToRun]) {
+    tasks[adminId + functionToRun].stop();
+  }
+
+  const cronJob = cron.schedule('* * * * *', () => {
+    const now = Date.now();
+    console.log("Current Time:", new Date(now).toISOString());
+
+    if (now >= taskExecutionTime) {
+      console.log(`Running task: ${functionToRun}`);
+      runTaskFunction(functionToRun);
+      task.isCompleted = true;
+      cronJob.stop();
+    }
+  });
+
+  tasks[adminId + functionToRun] = cronJob; // Store the active cron job
+};
+
+export const putTimer = async (req, res) => {
+  const { adminId } = req.params;
+  const taskData = req.body; // Expecting a single task object
+
+  console.log(req.body);
+
+  try {
+    if (!adminId) {
+      return res.status(400).json({ error: 'adminId is required' });
+    }
+
+    // Validate the task data
+    if (!taskData.durationValue || !taskData.durationUnit || !taskData.startTime || !taskData.functionToRun) {
+      throw new Error('Task data is incomplete');
+    }
+
+    const existingTask = await prisma.task.findFirst({
+      where: {
+        adminId: adminId,
+        functionToRun: taskData.functionToRun,
+      },
     });
-  };
-  
+
+    if (existingTask) {
+      // Update the existing task
+      await prisma.task.update({
+        where: { id: existingTask.id },
+        data: {
+          startTime: new Date(taskData.startTime),
+          durationValue: taskData.durationValue,
+          durationUnit: taskData.durationUnit,
+          isCompleted: false,
+        },
+      });
+
+      // Restart the cron job
+      scheduleTask({
+        ...existingTask,
+        startTime: new Date(taskData.startTime),
+        durationValue: taskData.durationValue,
+        durationUnit: taskData.durationUnit,
+      });
+    } else {
+      // Create a new task
+      const newTask = await prisma.task.create({
+        data: {
+          adminId: adminId,
+          functionToRun: taskData.functionToRun,
+          startTime: new Date(taskData.startTime),
+          durationValue: taskData.durationValue,
+          durationUnit: taskData.durationUnit,
+          isCompleted: false,
+        },
+      });
+
+      // Schedule the new task
+      scheduleTask(newTask);
+    }
+
+    res.status(201).json({ message: 'Task scheduled/updated successfully' });
+  } catch (err) {
+    console.error('Error in scheduling tasks:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
