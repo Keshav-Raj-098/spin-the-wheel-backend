@@ -38,10 +38,18 @@ const registerAdmin = async (req, res) => {
 
 // Function to log in an admin
 const loginAdmin = async (req, res) => {
-  const { username, password,secretKey } = req.body;
+  const { username, password, secretKey } = req.body;
 
-  if(!(secretKey===process.env.ADMIN_SECRET_KEY)){
-    return res.status(200).json({ message: 'SecretKey Not Matched',})
+  console.log(req.body); // Log incoming request body
+
+  // Validate the presence of the secret key
+  if (secretKey !== process.env.ADMIN_SECRET_KEY) {
+    return res.status(403).json({ message: 'Secret Key Not Matched' });
+  }
+
+  // Validate the presence of required fields
+  if (!username || !password) {
+    return res.status(400).json({ message: 'Username and password are required.' });
   }
 
   try {
@@ -50,18 +58,19 @@ const loginAdmin = async (req, res) => {
       where: { username },
     });
 
-
+    // Check if admin exists and verify the password
     if (!admin || !(await bcrypt.compare(password, admin.password))) {
       return res.status(401).json({ message: 'Invalid username or password' });
     }
 
-
+    // Successful login
     return res.status(200).json({ message: 'Login successful', admin });
   } catch (error) {
     console.error('Error logging in admin:', error);
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
+
 
 // Reset Leaderboard
 const resetLeaderBoard = async (req, res) => {

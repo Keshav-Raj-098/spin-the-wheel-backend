@@ -3,7 +3,7 @@ import { prisma } from "../prisma/prisma.js";
 
 const UserAuth = async (req, res) => {
   const { name, email, gender, age } = req.body;
-  const { adminId } = req.params; // Get adminId from params
+
 
   try {
     // Check if the user exists by email
@@ -11,43 +11,16 @@ const UserAuth = async (req, res) => {
       where: { email },
     });
 
-    // Function to get uncompleted forms
-    const getUncompletedForms = async (userFormDone) => {
-      // Fetch all forms created by the admin
-      const adminForms = await prisma.form.findMany({
-        where: { adminId },
-        select: { id: true },
-      });
-
-      // Extract form IDs from admin's forms
-      const adminFormIds = adminForms.map(form => form.id);
-
-      // Filter out forms that the user has already completed
-      const uncompletedFormIds = adminFormIds.filter(id => !userFormDone.includes(id));
-
-      return uncompletedFormIds;
-    };
-
     // If user exists, attempt login
     if (existingUser) {
       // Check if the name matches the existing user
       if (existingUser.name !== name) {
         return res.status(404).json({ message: "User found, but name does not match" });
       }
-
-      // Ensure existingUser.formDone is an array
-      const userFormDone = Array.isArray(existingUser.formDone) ? existingUser.formDone : [];
-
-      // Get uncompleted form IDs
-      const uncompletedFormIds = await getUncompletedForms(userFormDone);
-
-      // Destructure user data to exclude formDone
-      const { formDone, ...userDetails } = existingUser;
-
+      
       // Successful login
       return res.status(200).json({
-        user: userDetails,
-        uncompletedForms: uncompletedFormIds,
+        user: existingUser,
         message: "Login successful",
       });
     }
@@ -57,8 +30,8 @@ const UserAuth = async (req, res) => {
       data: {
         name,
         email,
-        gender,
-        age,
+        gender: gender || null, // Use null if gender is not provided
+        age: age || null,       // Use null if age is not provided
       },
     });
 
@@ -67,24 +40,19 @@ const UserAuth = async (req, res) => {
       return res.status(400).json({ message: "Server busy, can't register you" });
     }
 
-    // Get uncompleted form IDs for the new user (they haven't completed any forms)
-    const uncompletedFormIds = await getUncompletedForms([]);
-
-    // Destructure user data to exclude formDone
-    const { formDone: _, ...newUserDetails } = newUser;
-
     // Successful registration
     return res.status(201).json({
-      user: newUserDetails,
-      uncompletedForms: uncompletedFormIds,
+      user: newUser,
       message: "Registered successfully",
     });
-    
+
   } catch (error) {
     console.error('Error during user authentication:', error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
+
+
 
 
 
@@ -154,7 +122,8 @@ const updateUserPoints = async (req, res) => {
 
 // markoption
 const markOption = async (req, res) => {
-  const { userId, formId, questionId, optionId } = req.body;
+  const {userId} = req.params
+  const {  formId, questionId, optionId } = req.body;
 
   try {
     // 1. Check if the user has already marked the question
@@ -168,7 +137,7 @@ const markOption = async (req, res) => {
     });
 
     if (existingMark) {
-      return res.status(400).json({ message: 'Question already marked by user.' });
+      return res.status(202).json({ message: 'Question already marked by user.' });
     }
 
     // 2. Mark the question and update the markedCount of the option
