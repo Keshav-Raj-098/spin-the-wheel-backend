@@ -4,6 +4,9 @@ import { prisma } from "../prisma/prisma.js";
 const UserAuth = async (req, res) => {
   const { name, email, gender, age } = req.body;
 
+  console.log(req.body);
+  
+
 
   try {
     // Check if the user exists by email

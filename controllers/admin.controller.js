@@ -1,7 +1,5 @@
 import { prisma } from "../prisma/prisma.js";
 import bcrypt from 'bcrypt';
-import {tasks,scheduleTask} from "./scehduleFunctions.js"
-
 
 
 // Function to create an admin
@@ -70,7 +68,6 @@ const loginAdmin = async (req, res) => {
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
-
 
 // Reset Leaderboard
 const resetLeaderBoard = async (req, res) => {
@@ -418,49 +415,184 @@ const deleteForm = async (req, res) => {
 };
 
 
-
-const putTimer = async (req, res) => {
-  const { adminId } = req.params;
-  const { tasksData } = req.body;
+const getUsersAfterTaskStart = async (req, res) => {
+  const { adminId, functionName } = req.params;
 
   try {
-    if (!adminId) {
-      return res.status(400).json({ error: 'adminId is required' });
-    }
-
-    if (!Array.isArray(tasksData) || tasksData.length === 0) {
-      return res.status(400).json({ error: 'Tasks data must be a non-empty array' });
-    }
-
-    tasksData.forEach((taskData) => {
-      // Validate each task
-      if (!taskData.durationValue || !taskData.durationUnit || !taskData.startTime || !taskData.functionToRun) {
-        throw new Error('Task data is incomplete');
-      }
-
-      const task = {
-        ...taskData,
+    // Step 1: Find the task using adminId and functionToRun
+    const task = await prisma.task.findFirst({
+      where: {
         adminId: adminId,
-        isCompleted: false,
-      };
-
-      tasks.push(task); // Push task into the tasks array or store in DB
-
-      try {
-        scheduleTask(task); // Function that schedules the task
-      } catch (err) {
-        console.error(`Error scheduling task: ${task.functionToRun}`, err);
-        throw new Error(`Failed to schedule task: ${task.functionToRun}`);
-      }
+        functionToRun: functionName,
+      },
+      select: {
+        id: true,
+        updatedAt: true,  // Use updatedAt for comparison
+      },
     });
 
-    res.status(201).json({ message: 'Tasks scheduled successfully' });
+    if (!task) {
+      return res.status(404).json({
+        message: 'Task not found',
+      });
+    }
 
-  } catch (err) {
-    console.error('Error in scheduling tasks:', err);
-    res.status(500).json({ error: err.message });
+    const { updatedAt } = task; // Use updatedAt instead of startTime
+
+    // Step 2: Find unique userIds from UserQuestion where createdAt is after updatedAt
+    const userQuestions = await prisma.userQuestion.findMany({
+      where: {
+        createdAt: {
+          gt: updatedAt,  // created after the task's updatedAt
+        },
+      },
+      select: {
+        userId: true,
+      },
+      distinct: ['userId'],  // Ensure we get unique userIds
+    });
+
+    const userIds = userQuestions.map((uq) => uq.userId);
+
+    if (userIds.length === 0) {
+      return res.status(200).json({
+        message: 'No users found after the task\'s updated time',
+        users: [],
+      });
+    }
+
+    // Step 3: Fetch the users based on the found userIds, and retrieve their name and points
+    const users = await prisma.user.findMany({
+      where: {
+        id: {
+          in: userIds,
+        },
+      },
+      select: {
+        name: true,
+        points: true,
+      },
+    });
+
+    return res.status(200).json({
+      message: 'Users retrieved successfully',
+      users: users,
+    });
+
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    return res.status(500).json({
+      message: 'An error occurred while fetching users',
+      error: error.message,
+    });
   }
 };
 
 
-export { registerAdmin, loginAdmin, resetLeaderBoard, getAllUsers, addForm, updateQuestion, updateOption, deleteForm, getForms, getFormsWithIds,putTimer }
+const getAdminTaskDetails = async (req, res) => {
+  const adminId = req.params.adminId;
+
+  try {
+    // Fetch the admin with the lastSessionWinners and all associated tasks
+    const admin = await prisma.admin.findUnique({
+      where: { id: adminId },
+      include: {
+        task: {
+          orderBy: { updatedAt: 'desc' }, // Still ordering by updatedAt
+        },
+      },
+    });
+
+    if (!admin) {
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+
+    // Create an object for tasks keyed by functionToRun
+    const tasksWithDetails = {};
+    
+    admin.task.forEach(task => {
+      const currentTime = new Date();
+      const durationInMilliseconds = task.durationValue * getDurationMultiplier(task.durationUnit);
+      const taskEndTime = new Date(task.updatedAt.getTime() + durationInMilliseconds);
+
+      const timeLeft = Math.max(0, taskEndTime - currentTime);
+
+      tasksWithDetails[task.functionToRun] = {
+        updatedAt: timeAgo(task.updatedAt),
+        timeLeft: formatTimeLeft(timeLeft), // Format it to a readable string
+      };
+    });
+
+    res.json({
+      lastSessionWinners: admin.lastSessionWinners,
+      tasks: tasksWithDetails, // Return tasks as an object
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Helper functions (getDurationMultiplier and formatTimeLeft) remain unchanged
+
+// Helper function to get duration in milliseconds based on the unit
+const getDurationMultiplier = (unit) => {
+  switch (unit) {
+    case 'minutes':
+      return 60 * 1000; // Convert minutes to milliseconds
+    case 'hours':
+      return 60 * 60 * 1000; // Convert hours to milliseconds
+    case 'days':
+      return 24 * 60 * 60 * 1000; // Convert days to milliseconds
+    default:
+      return 0; // Invalid unit
+  }
+};
+
+// Helper function to format time left
+const formatTimeLeft = (milliseconds) => {
+  const sec = Math.floor((milliseconds / 1000) % 60);
+  const min = Math.floor((milliseconds / (1000 * 60)) % 60);
+  const hr = Math.floor((milliseconds / (1000 * 60 * 60)) % 24);
+  const days = Math.floor(milliseconds / (1000 * 60 * 60 * 24));
+
+  // Create an array to hold time parts
+  const timeParts = [];
+
+  if (days > 0) timeParts.push(`${days}day${days > 1 ? 's' : ''}`);
+  if (hr > 0) timeParts.push(`${hr}hour${hr > 1 ? 's' : ''}`);
+  if (min > 0) timeParts.push(`${min}min${min > 1 ? 's' : ''}`);
+  // if (sec > 0) timeParts.push(`${sec}sec${sec > 1 ? 's' : ''}`);
+
+  // Join the parts into a single string, or return null if all parts are zero
+  return timeParts.length > 0 ? timeParts.join(' ') : null;
+};
+
+
+function timeAgo(dateString) {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffInSeconds = Math.floor((now - date) / 1000);
+
+  const seconds = diffInSeconds;
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+ 
+
+  if (seconds < 60) {
+      return `${seconds} seconds ago`;
+  } else if (minutes < 60) {
+      return `${minutes} minutes ago`;
+  } else if (hours < 24) {
+      return `${hours} hours ago`;
+  } else if (days < 7) {
+      return `${days} days ago`;
+  } else {
+      return date.toLocaleDateString();
+  }
+}
+
+
+
+export { registerAdmin, loginAdmin, resetLeaderBoard, getAllUsers, addForm, updateQuestion, updateOption, deleteForm, getForms, getFormsWithIds,getUsersAfterTaskStart,getAdminTaskDetails}
