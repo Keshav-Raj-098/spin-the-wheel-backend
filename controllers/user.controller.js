@@ -245,7 +245,7 @@ const getFormById = async (req, res) => {
 
 
 const getUncompletedForm = async (req, res) => {
-  const { adminId, userId } = req.params; // Assuming you have the admin ID and user ID from the request parameters
+  const { adminId, userId } = req.params;
 
   try {
     // Fetch the forms created by the admin
@@ -258,6 +258,10 @@ const getUncompletedForm = async (req, res) => {
       },
     });
 
+    if (!forms.length) {
+      return res.status(404).json({ message: 'No forms found for the given admin.' });
+    }
+
     // Extract form IDs created by the admin
     const formIds = forms.map((form) => form.id);
 
@@ -267,17 +271,20 @@ const getUncompletedForm = async (req, res) => {
         id: userId,
       },
       select: {
-        formDone: true,
+        formDone: true, // Select only formDone
       },
     });
 
-    // Filter out the forms that the user has already completed
-    const uncompletedFormIds = formIds.filter((formId) => !user.formDone.includes(formId));
+    // Default to an empty array if formDone is undefined/null
+    const completedForms = user?.formDone || [];
 
-    // Return the array of form IDs not present in user.formDone
+    // Filter out the forms that the user has already completed
+    const uncompletedFormIds = formIds.filter((formId) => !completedForms.includes(formId));
+
+    // Return the array of uncompleted form IDs
     res.status(200).json(uncompletedFormIds);
   } catch (error) {
-    console.error('Error fetching form IDs:', error);
+    console.error('Error fetching uncompleted form IDs:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 };
