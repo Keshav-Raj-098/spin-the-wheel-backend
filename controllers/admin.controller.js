@@ -101,8 +101,8 @@ const getAllUsers = async (req, res) => {
         age: true,     // Optional scalar field
         points: true,  // Scalar field
       },
-      orderBy:{
-        points:"desc"
+      orderBy: {
+        points: "desc"
       }
     });
 
@@ -114,53 +114,111 @@ const getAllUsers = async (req, res) => {
   }
 };
 
-const addForm = async (req, res) => {
-  try {
-    const { adminId } = req.params; // Admin ID from URL params
-    const { formData } = req.body; // Expecting formData as request body
 
-    // Step 1: Create the form
-    const createdForm = await prisma.form.create({
+const addForm = async (req, res) => {
+
+  const { adminId } = req.params;
+  const { formData } = req.body;
+
+  console.log(req.body);
+
+  try {
+
+
+    // Validation
+    if (!adminId || !formData || !Array.isArray(formData)) {
+      return res.status(400).json({
+        message: "Invalid input: adminId and formData array are required"
+      });
+    }
+
+    // Validate formData structure
+    const isValidFormData = formData.every(item =>
+      item.question &&
+      Array.isArray(item.options) &&
+      item.options.length > 0
+    );
+
+    if (!isValidFormData) {
+      return res.status(400).json({
+        message: "Invalid formData structure: each item must have a question and non-empty options array"
+      });
+    }
+
+    // Check if admin exists
+    const adminExists = await prisma.admin.findUnique({
+      where: { id: adminId }
+    });
+
+    if (!adminExists) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    // Use a transaction to ensure data consistency
+    const result = await prisma.$transaction(async (prisma) => {
+      // Create form
+      const form = await prisma.form.create({
+        data: {
+          adminId,
+        }
+      });
+
+      // Create questions and options in a more efficient way
+      const questions = await Promise.all(
+        formData.map(async (questionData) => {
+          const question = await prisma.question.create({
+            data: {
+              question: questionData.question,
+              formId: form.id,
+              options: {
+                create: questionData.options.map(optionText => ({
+                  option: optionText,
+                  markedCount: 0
+                }))
+              }
+            },
+            include: {
+              options: true
+            }
+          });
+          return question;
+        })
+      );
+
+      return { form, questions };
+    });
+
+    res.status(201).json({
+      message: "Form created successfully",
       data: {
-        adminId, // Link the form to the admin
+        form: result.form,
+        questions: result.questions
       }
     });
 
-    // Step 2: Create questions linked to the created form
-    const createdQuestions = await Promise.all(
-      formData.map(async (q) => {
-        return await prisma.question.create({
-          data: {
-            question: q.question,
-            formId: createdForm.id // Link the question to the created form
-          }
-        });
-      })
-    );
-
-    // Step 3: Create options for each question
-    await Promise.all(
-      createdQuestions.map(async (question, index) => {
-        const options = formData[index].options; // Get options for the current question
-        await Promise.all(
-          options.map(async (optionText) => {
-            await prisma.options.create({
-              data: {
-                option: optionText,
-                questionId: question.id // Link the option to the current question
-              }
-            });
-          })
-        );
-      })
-    );
-
-    res.status(200).json({ message: "Form created successfully", form: createdForm });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Error creating form", error });
+    console.error('Form creation error:', error);
+
+    // Handle specific Prisma errors
+    if (error.code === 'P2002') {
+      return res.status(409).json({
+        message: "A unique constraint violation occurred"
+      });
+    }
+
+    if (error.code === 'P2003') {
+      return res.status(400).json({
+        message: "Foreign key constraint failed"
+      });
+    }
+
+    res.status(500).json({
+      message: "Internal server error while creating form",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
+
 
 const updateOption = async (req, res) => {
   try {
@@ -324,95 +382,157 @@ const getFormsWithIds = async (req, res) => {
   }
 }
 
+// Delete Form
+
 const deleteForm = async (req, res) => {
+  const { formId } = req.params;
   try {
-    const { formId } = req.params; // Form ID from URL params
 
-    // Step 1: Check if the form exists
-    const form = await prisma.form.findUnique({
-      where: { id: formId },
-      include: {
-        questions: true, // Ensure that questions are included to verify form integrity
-      }
-    });
-
-    if (!form) {
-      return res.status(404).json({ message: "No form found with the provided ID" });
+    // Validate formId format (assuming UUID)
+    if (!formId || !/^[0-9a-fA-F-]{36}$/.test(formId)) {
+      return res.status(400).json({
+        message: "Invalid form ID format"
+      });
     }
 
-    const questionIds = form.questions.map((q) => q.id);
+    // Use a transaction to ensure all operations succeed or none do
+    await prisma.$transaction(async (tx) => {
+      // Check if form exists and get related data in a single query
+      const form = await tx.form.findUnique({
+        where: { id: formId },
+        include: {
+          questions: {
+            include: {
+              options: true,
+              userQuestions: true
+            }
+          }
+        }
+      });
 
-    // Step 2: Remove the form ID from all users who have completed the form (formDone array)
-    await prisma.user.updateMany({
-      where: {
-        formDone: {
-          has: formId // Users who have this formId in their formDone array
-        }
-      },
-      data: {
-        formDone: {
-          set: [] // Clear the array before applying the filter
-        }
+      if (!form) {
+        throw new Error('Form not found');
       }
-    });
 
-    // Update the users' formDone array by filtering out the deleted form ID
-    await prisma.user.updateMany({
-      where: {
-        formDone: {
-          has: formId
+      // Get all question IDs for this form
+      const questionIds = form.questions.map(q => q.id);
+
+      // Step 1: Update users' formDone arrays
+      // First, get all users who have this form in their formDone array
+      const usersWithForm = await tx.user.findMany({
+        where: {
+          formDone: {
+            has: formId
+          }
+        },
+        select: {
+          id: true,
+          formDone: true
         }
-      },
-      data: {
-        formDone: {
-          set: formDone.filter(f => f !== formId) // Remove formId from the array
+      });
+
+      // Update each user's formDone array
+      if (usersWithForm.length > 0) {
+        await tx.user.updateMany({
+          where: {
+            id: {
+              in: usersWithForm.map(u => u.id)
+            }
+          },
+          data: {
+            formDone: {
+              set: [] // Clear array first
+            }
+          }
+        });
+
+        // Update each user individually with their filtered formDone array
+        await Promise.all(
+          usersWithForm.map(user =>
+            tx.user.update({
+              where: { id: user.id },
+              data: {
+                formDone: {
+                  set: user.formDone.filter(f => f !== formId)
+                }
+              }
+            })
+          )
+        );
+      }
+
+      // Step 2: Delete all related records in the correct order
+      // Delete UserQuestion records
+      await tx.userQuestion.deleteMany({
+        where: {
+          questionId: {
+            in: questionIds
+          }
         }
-      }
-    });
+      });
 
-    // Step 3: Delete the related user responses (UserQuestion) for each question in the form
-    await prisma.userQuestion.deleteMany({
-      where: {
-        questionId: {
-          in: questionIds
+      // Delete Options records
+      await tx.options.deleteMany({
+        where: {
+          questionId: {
+            in: questionIds
+          }
         }
-      }
-    });
+      });
 
-    // Step 4: Delete all options linked to the questions of this form
-    await prisma.options.deleteMany({
-      where: {
-        questionId: {
-          in: questionIds
+      // Delete Question records
+      await tx.question.deleteMany({
+        where: {
+          formId: formId
         }
-      }
+      });
+
+      // Finally, delete the Form
+      await tx.form.delete({
+        where: {
+          id: formId
+        }
+      });
     });
 
-    // Step 5: Delete all questions related to the form
-    await prisma.question.deleteMany({
-      where: {
-        formId: formId
-      }
+    return res.status(200).json({
+      success: true,
+      message: "Form and all related data successfully deleted"
     });
 
-    // Step 6: Finally, delete the form itself
-    await prisma.form.delete({
-      where: { id: formId }
-    });
-
-    // Response on successful deletion
-    res.status(200).json({ message: "Form and all related questions, options, user responses, and user form records deleted successfully" });
   } catch (error) {
-    console.error(error);
+    console.error('Delete form error:', error);
 
-    // Check for specific errors and respond accordingly
-    if (error.code === 'P2003') { // Foreign key constraint violation
-      return res.status(400).json({ message: "Cannot delete form due to existing references" });
+    if (error.message === 'Form not found') {
+      return res.status(404).json({
+        success: false,
+        message: "Form not found"
+      });
     }
 
-    res.status(500).json({ message: "Error deleting form", error: error.message });
+    // Handle specific Prisma errors
+    if (error.code === 'P2003') {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot delete form due to existing references"
+      });
+    }
+
+    if (error.code === 'P2025') {
+      return res.status(404).json({
+        success: false,
+        message: "Record to delete does not exist"
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error while deleting form",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
+
 
 
 const getUsersAfterTaskStart = async (req, res) => {
@@ -509,7 +629,7 @@ const getAdminTaskDetails = async (req, res) => {
 
     // Create an object for tasks keyed by functionToRun
     const tasksWithDetails = {};
-    
+
     admin.task.forEach(task => {
       const currentTime = new Date();
       const durationInMilliseconds = task.durationValue * getDurationMultiplier(task.durationUnit);
@@ -578,21 +698,21 @@ function timeAgo(dateString) {
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
- 
+
 
   if (seconds < 60) {
-      return `${seconds} seconds ago`;
+    return `${seconds} seconds ago`;
   } else if (minutes < 60) {
-      return `${minutes} minutes ago`;
+    return `${minutes} minutes ago`;
   } else if (hours < 24) {
-      return `${hours} hours ago`;
+    return `${hours} hours ago`;
   } else if (days < 7) {
-      return `${days} days ago`;
+    return `${days} days ago`;
   } else {
-      return date.toLocaleDateString();
+    return date.toLocaleDateString();
   }
 }
 
 
 
-export { registerAdmin, loginAdmin, resetLeaderBoard, getAllUsers, addForm, updateQuestion, updateOption, deleteForm, getForms, getFormsWithIds,getUsersAfterTaskStart,getAdminTaskDetails}
+export { registerAdmin, loginAdmin, resetLeaderBoard, getAllUsers, addForm, updateQuestion, updateOption, deleteForm, getForms, getFormsWithIds, getUsersAfterTaskStart, getAdminTaskDetails }
