@@ -56,9 +56,6 @@ const UserAuth = async (req, res) => {
 };
 
 
-
-
-
 // Update Points
 const updateUserPoints = async (req, res) => {
   const { id } = req.params; // Get user ID from the request parameters
@@ -191,23 +188,30 @@ const getLeaderBoard = async (req, res) => {
         id: true,
         name: true,
         points: true,
+        spinLeft:true
       },
       orderBy: {
         points: "desc"
       },
     });
-
+   
     // Step 5: Find the rank (index) of the provided userId in the sorted all-time leaderboard
     const userIndex = allUsers.findIndex(user => user.id === userId);
-
+   
     if (userIndex === -1) {
       return res.status(404).json({ message: "User not found in the leaderboard" });
     }
+    const thisUser = allUsers[userIndex]
 
     // Step 6: Return the leaderboard and the user's rank
     res.status(200).json({
       leaderBoard: sessionUsers,  // Top 3 session users
-      rank: userIndex + 1,        // Return 1-based index for the user's rank
+      user: {
+        rank:userIndex + 1,
+        points:thisUser.points,
+        spinLeft:thisUser.spinLeft
+
+      }        // Return 1-based index for the user's rank
     });
   } catch (error) {
     console.error('Error retrieving leaderboard:', error);
@@ -233,10 +237,10 @@ const markOption = async (req, res) => {
     });
 
     if (existingMark) {
-      return res.status(202).json({ message: 'Question already marked by user.' });
+      return res.status(202).json({ message: 'Question already marked by user.',flag:false });
     }
 
-    // 2. Mark the question and update the markedCount of the option
+    // 2. Mark the question and update the markedCount of the option 
     await prisma.userQuestion.create({
       data: {
         userId,
@@ -271,7 +275,23 @@ const markOption = async (req, res) => {
       });
     }
 
-    res.status(200).json({ message: 'Option marked and updated successfully' });
+
+      const formIdCreatedByAdmin = await prisma.form.findMany({
+        where: { adminId: adminId },
+        select: { id: true } // Only select the `id` field
+      });
+      
+      // 2. Extract the IDs into a simple array
+      const formIds = formIdCreatedByAdmin.map(form => form.id);
+      
+      // 3. Check if both arrays have the same length and contain the same elements
+      const arraysMatch = (arr1, arr2) => 
+        arr1.length === arr2.length && arr1.every(id => arr2.includes(id));
+      
+      // 4. Set the flag based on whether form IDs match exactly with updatedFormDone
+      let flag = arraysMatch(formIds, updatedFormDone);
+
+    res.status(200).json({ message: 'Option marked and updated successfully',flag:flag });
   } catch (error) {
     console.error('Error marking option:', error);
     res.status(500).json({ error: 'Internal Server Error' });
