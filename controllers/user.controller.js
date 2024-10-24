@@ -5,7 +5,7 @@ const UserAuth = async (req, res) => {
   const { name, email, gender, age } = req.body;
 
   console.log(req.body);
-  
+
 
 
   try {
@@ -20,7 +20,7 @@ const UserAuth = async (req, res) => {
       if (existingUser.name !== name) {
         return res.status(404).json({ message: "User found, but name does not match" });
       }
-      
+
       // Successful login
       return res.status(200).json({
         user: existingUser,
@@ -87,7 +87,7 @@ const updateUserPoints = async (req, res) => {
 
     // Calculate the new points and spins
     const newPoints = (user.points || 0) + points; // Add points to existing points
-    const newSpinLeft = (user.spinLeft || 0) - spinUpdate; // Subtract spinUpdate from existing spinLeft
+    const newSpinLeft = (user.spinLeft || 0) + spinUpdate; // Subtract spinUpdate from existing spinLeft
 
     // Ensure spins do not go below 0
     if (newSpinLeft < 0) {
@@ -122,11 +122,104 @@ const updateUserPoints = async (req, res) => {
   }
 };
 
+const getLeaderBoard = async (req, res) => {
+  const { adminId, userId } = req.params;
+
+  try {
+    // Step 1: Fetch the task based on adminId and functionToRun
+    const task = await prisma.task.findFirst({
+      where: {
+        adminId: adminId,
+        functionToRun: "sessionWinner",
+      },
+      select: {
+        id: true,
+        updatedAt: true,  // Use updatedAt for comparison
+      },
+    });
+
+    if (!task) {
+      return res.status(404).json({
+        message: 'Task not found',
+      });
+    }
+
+    const { updatedAt } = task;  // Use updatedAt instead of startTime
+
+    // Step 2: Find unique userIds from UserQuestion where createdAt is after updatedAt
+    const userQuestions = await prisma.userQuestion.findMany({
+      where: {
+        createdAt: {
+          gt: updatedAt,  // created after the task's updatedAt
+        },
+      },
+      select: {
+        userId: true,
+      },
+      distinct: ['userId'],  // Ensure we get unique userIds
+    });
+
+    const userIds = userQuestions.map((uq) => uq.userId);
+
+    if (userIds.length === 0) {
+      return res.status(200).json({
+        message: 'No users found after the task\'s updated time',
+        users: [],
+      });
+    }
+
+    // Step 3: Fetch the top 3 session users based on the found userIds, and retrieve only their name and points
+    const sessionUsers = await prisma.user.findMany({
+      where: {
+        id: {
+          in: userIds,
+        },
+      },
+      select: {
+        name: true,
+        points: true,
+      },
+      orderBy: {
+        points: 'desc', // Order by points descending
+      },
+      take: 3, // Limit to top 3 session users
+    });
+
+    // Step 4: Fetch all users and order by points to calculate the rank of the provided userId
+    const allUsers = await prisma.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        points: true,
+      },
+      orderBy: {
+        points: "desc"
+      },
+    });
+
+    // Step 5: Find the rank (index) of the provided userId in the sorted all-time leaderboard
+    const userIndex = allUsers.findIndex(user => user.id === userId);
+
+    if (userIndex === -1) {
+      return res.status(404).json({ message: "User not found in the leaderboard" });
+    }
+
+    // Step 6: Return the leaderboard and the user's rank
+    res.status(200).json({
+      leaderBoard: sessionUsers,  // Top 3 session users
+      rank: userIndex + 1,        // Return 1-based index for the user's rank
+    });
+  } catch (error) {
+    console.error('Error retrieving leaderboard:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 
 // markoption
 const markOption = async (req, res) => {
-  const {userId} = req.params
-  const {  formId, questionId, optionId } = req.body;
+  const { userId } = req.params
+  const { formId, questionId, optionId } = req.body;
 
   try {
     // 1. Check if the user has already marked the question
@@ -185,7 +278,6 @@ const markOption = async (req, res) => {
   }
 };
 
-
 const getFormById = async (req, res) => {
   const { formId, userId } = req.params; // Assuming you have the form ID from the request parameters
 
@@ -223,17 +315,19 @@ const getFormById = async (req, res) => {
     // Create a Set of marked question IDs for quick lookup
     const markedQuestionIds = new Set(markedQuestions.map(q => q.questionId));
 
-    // Format the form without `createdAt` and `updatedAt`
+    // Format the form and filter for unmarked questions
     const formattedForm = {
-      questions: form.questions.map(question => ({
-        question: question.question,
-        questionId: question.id,
-        options: question.options.map(option => ({
-          id: option.id, // Include option ID
-          option: option.option, // Extracting option text
-        })),
-        isMarked: markedQuestionIds.has(question.id), // Add boolean field to check if the question is marked
-      })),
+      questions: form.questions
+        .map(question => ({
+          question: question.question,
+          questionId: question.id,
+          options: question.options.map(option => ({
+            id: option.id, // Include option ID
+            option: option.option, // Extracting option text
+          })),
+          isMarked: markedQuestionIds.has(question.id), // Add boolean field to check if the question is marked
+        }))
+        .filter(question => !question.isMarked), // Only keep questions that are not marked
     };
 
     res.status(200).json(formattedForm);
@@ -242,6 +336,7 @@ const getFormById = async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 };
+
 
 
 const getUncompletedForm = async (req, res) => {
@@ -293,8 +388,8 @@ const createFeedback = async (req, res) => {
   const { adminId, userId } = req.params;
   const { stars, suggestion, abtTheGame, notLiked } = req.body;
 
-  console.log({ stars, suggestion, abtTheGame, notLiked } );
-  
+  console.log({ stars, suggestion, abtTheGame, notLiked });
+
 
   try {
     // Check if the user has already provided feedback for this admin
@@ -308,7 +403,7 @@ const createFeedback = async (req, res) => {
     if (existingFeedback) {
       console.error('nahi aaya response');
       return res.status(400).json({
-           message: 'Feedback already exists for this user',
+        message: 'Feedback already exists for this user',
       });
     }
 
@@ -354,4 +449,4 @@ const createFeedback = async (req, res) => {
 
 
 
-export { UserAuth, updateUserPoints, getFormById,getUncompletedForm, markOption,createFeedback }
+export { UserAuth, updateUserPoints, getLeaderBoard, getFormById, getUncompletedForm, markOption, createFeedback }

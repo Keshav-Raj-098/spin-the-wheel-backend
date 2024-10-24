@@ -13,7 +13,7 @@ model user {
   gender        String?
   age           String?
   points        Int           @default(0)
-  spinLeft      Int           @default(10) // Remove ? if you don't want it to be nullable
+  spinLeft      Int           @default(0) // Remove ? if you don't want it to be nullable
   formDone      String[]      @default([]) // Store completed form IDs in an array
   userQuestions UserQuestion[]
   Feedback      Feedback[]

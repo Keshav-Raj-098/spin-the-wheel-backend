@@ -121,9 +121,9 @@ const addForm = async (req, res) => {
   const { formData } = req.body;
 
   console.log(req.body);
-  
+
   try {
-   
+
 
     // Validation
     if (!adminId || !formData || !Array.isArray(formData)) {
@@ -382,9 +382,11 @@ const getFormsWithIds = async (req, res) => {
   }
 }
 
+// Delete Form
+
 const deleteForm = async (req, res) => {
+  const { formId } = req.params;
   try {
-    const { formId } = req.params;
 
     // Validate formId format (assuming UUID)
     if (!formId || !/^[0-9a-fA-F-]{36}$/.test(formId)) {
