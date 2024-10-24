@@ -16,6 +16,7 @@ model user {
   spinLeft      Int           @default(10) // Remove ? if you don't want it to be nullable
   formDone      String[]      @default([]) // Store completed form IDs in an array
   userQuestions UserQuestion[]
+  Feedback      Feedback[]
 }
 
 model admin {
@@ -25,6 +26,7 @@ model admin {
   lastSessionWinners Json?  
   forms    Form[]
   task     Task[]
+  Feedback Feedback[]
 }
 model Task {
   id            Int      @id @default(autoincrement())
@@ -79,5 +81,16 @@ model UserQuestion {
 
   @@unique([userId, questionId]) // Only track that the user answered the question
 }
+model Feedback {
+  id         String   @id @unique @default(uuid())
+  userId     String   // Foreign key for the user
+  adminId    String   // Foreign key for the admin
+  feedback   Json     // Store feedback as JSON
+  createdAt  DateTime @default(now())
+
+  user       user     @relation(fields: [userId], references: [id])  // Relation to the user
+  admin      admin    @relation(fields: [adminId], references: [id]) // Relation to the admin
+}
+
 
 

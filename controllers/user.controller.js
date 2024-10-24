@@ -289,7 +289,69 @@ const getUncompletedForm = async (req, res) => {
   }
 };
 
+const createFeedback = async (req, res) => {
+  const { adminId, userId } = req.params;
+  const { stars, suggestion, abtTheGame, notLiked } = req.body;
+
+  console.log({ stars, suggestion, abtTheGame, notLiked } );
+  
+
+  try {
+    // Check if the user has already provided feedback for this admin
+    const existingFeedback = await prisma.feedback.findFirst({
+      where: {
+        userId: userId,
+        adminId: adminId,  // Ensure uniqueness of feedback per user-admin pair
+      },
+    });
+
+    if (existingFeedback) {
+      console.error('nahi aaya response');
+      return res.status(400).json({
+           message: 'Feedback already exists for this user',
+      });
+    }
+
+    // Validate required fields
+    if (!stars || !suggestion || !abtTheGame || !notLiked) {
+      console.error('No response');
+      return res.status(400).json({
+        message: 'All fields are required.',
+      });
+    }
+
+    // Create new feedback
+    const feedback = await prisma.feedback.create({
+      data: {
+        userId,
+        adminId,
+        feedback: {
+          stars,
+          suggestion,
+          abtTheGame,
+          notLiked,
+        },
+      },
+    });
+
+    // Success response
+    return res.status(201).json({
+      success: true,
+      message: 'Feedback submitted successfully.',
+      feedback,
+    });
+
+  } catch (error) {
+    console.error('Error creating feedback:', error);
+    return res.status(500).json({
+      error: true,
+      message: 'An error occurred while submitting feedback.',
+    });
+  }
+};
 
 
 
-export { UserAuth, updateUserPoints, getFormById,getUncompletedForm, markOption }
+
+
+export { UserAuth, updateUserPoints, getFormById,getUncompletedForm, markOption,createFeedback }
