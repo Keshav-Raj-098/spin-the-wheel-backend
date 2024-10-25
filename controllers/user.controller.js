@@ -234,10 +234,11 @@ const markOption = async (req, res) => {
     return res.status(400).json({ message: 'All fields required'});
   }
 
-  if((isSurvey !==false)||(isSurvey !== true)){
-    console.log(isSurvey)
-      return res.status(406).json({ message: 'Type of Form Required',});
-  }
+  
+  if (typeof isSurvey !== 'boolean') {
+    console.log(isSurvey);
+    return res.status(406).json({ message: 'Type of Form Required' });
+}
 
 
   try {
@@ -433,7 +434,6 @@ const getFormById = async (req, res) => {
           questionId: question.id,
           isMultipleCorrect: question.multiple,
           textAllowed:question.textAllowed,
-          multiple: question.multiple, // Include `multiple` field
           options: question.options.map(option => ({
             id: option.id, // Include option ID
             option: option.option, // Extracting option text
