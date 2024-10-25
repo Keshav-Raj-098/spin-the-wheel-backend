@@ -46,7 +46,8 @@ model Task {
 model Form {
   id        String     @id @unique @default(uuid())
   adminId   String
-  name      String?
+  name      String
+  isSurvey  Boolean?   
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   admin     admin      @relation(fields: [adminId], references: [id])
@@ -57,6 +58,7 @@ model Question {
   id          String        @id @unique @default(uuid())
   question    String
   formId      String
+  textAllowed Boolean?         @default(false)
   multiple    Boolean?       @default(false)
   createdAt   DateTime      @default(now())
   options     Options[]
@@ -68,6 +70,7 @@ model Options {
   id          String   @id @unique @default(uuid())
   option      String
   questionId  String
+  isCorrect   Boolean  @default(false)
   markedCount Int      @default(0)
   createdAt   DateTime @default(now())
   question    Question @relation(fields: [questionId], references: [id])
@@ -77,6 +80,7 @@ model UserQuestion {
   id         String   @id @unique @default(uuid())
   userId     String
   questionId String
+  userResponse String?  
   user       user     @relation(fields: [userId], references: [id])
   Question   Question @relation(fields: [questionId], references: [id])
   createdAt  DateTime @default(now()) // Add this line

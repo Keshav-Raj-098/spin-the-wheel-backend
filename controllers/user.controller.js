@@ -222,17 +222,21 @@ const getLeaderBoard = async (req, res) => {
 
 // markoption
 const markOption = async (req, res) => {
-  const { userId, adminId } = req.params
-  const { formId, questionId, optionIds } = req.body;
+  const { userId } = req.params
+  const { formId, questionId, optionIds, text, isSurvey } = req.body;
 
   // optionId is an array of optionId
-  console.log({ userId, formId, questionId, optionIds });
+  console.log({ userId, formId, questionId, text });
+  console.log({ ...optionIds });
 
   if ((!formId || !questionId || !optionIds) || (optionIds.length === 0)) {
     console.log("Every Field required");
-    return res.status(400).json({ message: 'All fields required', flag: false });
+    return res.status(400).json({ message: 'All fields required'});
+  }
 
-
+  if((isSurvey !==false)||(isSurvey !== true)){
+    console.log(isSurvey)
+      return res.status(406).json({ message: 'Type of Form Required',});
   }
 
 
@@ -248,18 +252,24 @@ const markOption = async (req, res) => {
     });
 
     if (existingMark) {
-      console.log(existingMark)
-      console.log({ message: 'Question already marked by user.', flag: false })
-      return res.status(202).json({ message: 'Question already marked by user.', flag: false });
+      console.log({ message: 'Question already marked by user.', })
+      return res.status(202).json({ message: 'Question already marked by user.',});
     }
 
     // 2. Mark the question and update the markedCount of the option 
-    await prisma.userQuestion.create({
+    const userQuestionCreate = await prisma.userQuestion.create({
       data: {
         userId,
         questionId,
+        ...(text && { userResponse: text })
       }
     });
+
+    if (!userQuestionCreate) {
+
+      console.log("Error While creating userQuestion");
+      return res.status(401).json({ message: "Error While creating userQuestion" })
+    }
 
 
     const optionIncrement = await prisma.options.updateMany({
@@ -274,13 +284,13 @@ const markOption = async (req, res) => {
         },
       },
     });
+
+
     if (!optionIncrement) {
       console.log("Error while mark Count");
       return res.status(404).json({ message: "Can't mark this Question Now", flag: false })
 
     }
-
-    // 3. Check if all questions in the form are marked by the user
 
 
     const totalQuestions = await prisma.question.count({
@@ -310,25 +320,61 @@ const markOption = async (req, res) => {
 
     }
 
+    if (isSurvey) {
+      console.log({ message: 'Option marked and updated successfully' });
+      return res.status(200).json({ message: 'Option marked and updated successfully', marked: true });
+    }
 
-    // const formIdCreatedByAdmin = await prisma.form.findMany({
-    //   where: { adminId: adminId },
-    //   select: { id: true } // Only select the `id` field
-    // });
 
-    // // 2. Extract the IDs into a simple array
-    // const formIds = formIdCreatedByAdmin.map(form => form.id);
+    const correctOption = await prisma.options.findMany({
+      where: { isCorrect: true, questionId: questionId },
+      select: { id: true }
+    });
 
-    // // 3. Check if both arrays have the same length and contain the same elements
-    // const arraysMatch = (arr1, arr2) =>
-    //   arr1.length === arr2.length && arr1.every(id => arr2.includes(id));
+   
 
-    // // 4. Set the flag based on whether form IDs match exactly with updatedFormDone
-    // // let flag = arraysMatch(formIds,updatedFormDone);
+ 
+    console.log("Fetched Options From DB ",correctOption);
 
-    console.log({ message: 'Option marked and updated successfully', flag: false });
 
-    res.status(200).json({ message: 'Option marked and updated successfully', flag: false });
+
+    if (!correctOption || correctOption.length === 0) {
+      console.log("There are no correct answers for this question.");
+
+      return res.status(202).json({ message: "No correct answers available for this question.", flag: true });
+    }
+    const correctOptionIds = correctOption.map(e => e.id); 
+
+
+    // Separate the user-selected options into correct and incorrect arrays
+    const correctSelected = optionIds.filter(id => correctOptionIds.includes(id)); // User's correct options
+    const incorrectSelected = optionIds.filter(id => !correctOptionIds.includes(id)); // User's incorrect options
+
+    // Determine if all answers matched (i.e., no incorrect options)
+    const allAnswersMatched = incorrectSelected.length === 0 && correctSelected.length === correctOption.length;
+
+    if (!allAnswersMatched) {
+      console.log("Answer not matched");
+      return res.status(200).json({
+        message: 'Not all answers matched',
+        correct:correctSelected,
+        answers:correctOptionIds,
+        incorrect:incorrectSelected,
+        allAnswersMatched: false, // Not all answers matched
+      });
+    }
+
+    // If all answers are correct
+    console.log("All answers matched");
+
+    return res.status(200).json({
+      message: 'All answers matched',
+      correct:correctSelected,
+      answers:correctOptionIds,
+      incorrect:incorrectSelected,
+      allAnswersMatched: true, // All answers matched
+    });
+
   } catch (error) {
     console.error('Error marking option:', error);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -380,11 +426,13 @@ const getFormById = async (req, res) => {
     // Format the form and filter for unmarked questions
     const formattedForm = {
       name: form.name,
+      isSurvey:form.isSurvey,
       questions: form.questions
         .map(question => ({
           question: question.question,
           questionId: question.id,
-          isMultipleCorrect:question.multiple,
+          isMultipleCorrect: question.multiple,
+          textAllowed:question.textAllowed,
           multiple: question.multiple, // Include `multiple` field
           options: question.options.map(option => ({
             id: option.id, // Include option ID

@@ -118,15 +118,16 @@ const getAllUsers = async (req, res) => {
 const addForm = async (req, res) => {
 
   const { adminId } = req.params;
-  const { formData,formName } = req.body;
+  const { formData,isSurvey,formName } = req.body;
 
   console.log(req.body);
 
   try {
-
+    
+    
 
     // Validation
-    if (!adminId || !formData || !Array.isArray(formData)) {
+    if (!adminId || !formData || isSurvey || !Array.isArray(formData)) {
       return res.status(400).json({
         message: "Invalid input: adminId and formData array are required"
       });
@@ -145,6 +146,20 @@ const addForm = async (req, res) => {
       });
     }
 
+
+    if (!isSurvey) {
+      // Loop through each question in formData
+      const allQuestionsValid = formData.every(question => {
+        // Check if at least one option has isCorrect set to true
+        return question.options.some(option => option.isCorrect === true);
+      });
+    
+      if (!allQuestionsValid) {
+        console.log("Each question must have at least one correct option when isSurvey is false.");
+        return res.status(400).json({ message: "Each question must have at least one correct option when isSurvey is false." });
+      }
+    }
+
     // Check if admin exists
     const adminExists = await prisma.admin.findUnique({
       where: { id: adminId }
@@ -160,7 +175,8 @@ const addForm = async (req, res) => {
       const form = await prisma.form.create({
         data: {
           adminId,
-          name:formName
+          name:formName,
+          isSurvey:isSurvey
         }
       });
 
@@ -170,12 +186,13 @@ const addForm = async (req, res) => {
           const question = await prisma.question.create({
             data: {
               question: questionData.question,
-              multiple:questionData.multiple,        
+              multiple:questionData.multiple,
+              textAllowed:questionData.textAllowed,        
               formId: form.id,
               options: {
-                create: questionData.options.map(optionText => ({
-                  option: optionText,
-                  markedCount: 0
+                create: questionData.options.map((option) => ({
+                  option: option.text,
+                  isCorrect:option.isCorrect
                 }))
               }
             },
