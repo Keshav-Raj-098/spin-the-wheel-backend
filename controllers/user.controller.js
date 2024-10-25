@@ -83,8 +83,8 @@ const updateUserPoints = async (req, res) => {
     }
 
     // Calculate the new points and spins
-    const newPoints = (user.points || 0) + points; // Add points to existing points
-    const newSpinLeft = (user.spinLeft || 0) + spinUpdate; // Subtract spinUpdate from existing spinLeft
+    const newPoints = Math.max((user.points || 0) + points, 0);  // Ensure points do not go below 0
+    const newSpinLeft = Math.max((user.spinLeft || 0) + spinUpdate, 0);  // Ensure spinLeft does not go below 0
 
     // Ensure spins do not go below 0
     if (newSpinLeft < 0) {
@@ -224,9 +224,16 @@ const getLeaderBoard = async (req, res) => {
 const markOption = async (req, res) => {
   const { userId, adminId } = req.params
   const { formId, questionId, optionIds } = req.body;
-      
+
   // optionId is an array of optionId
   console.log({ userId, formId, questionId, optionIds });
+
+  if ((!formId || !questionId || !optionIds) || (optionIds.length === 0)) {
+    console.log("Every Field required");
+    return res.status(400).json({ message: 'All fields required', flag: false });
+
+
+  }
 
 
   try {
@@ -241,6 +248,8 @@ const markOption = async (req, res) => {
     });
 
     if (existingMark) {
+      console.log(existingMark)
+      console.log({ message: 'Question already marked by user.', flag: false })
       return res.status(202).json({ message: 'Question already marked by user.', flag: false });
     }
 
@@ -251,6 +260,7 @@ const markOption = async (req, res) => {
         questionId,
       }
     });
+
 
     const optionIncrement = await prisma.options.updateMany({
       where: {
@@ -264,12 +274,15 @@ const markOption = async (req, res) => {
         },
       },
     });
-    if(!optionIncrement){
+    if (!optionIncrement) {
       console.log("Error while mark Count");
-      
+      return res.status(404).json({ message: "Can't mark this Question Now", flag: false })
+
     }
 
     // 3. Check if all questions in the form are marked by the user
+
+
     const totalQuestions = await prisma.question.count({
       where: { formId }
     });
@@ -284,27 +297,36 @@ const markOption = async (req, res) => {
 
       const updatedFormDone = [...user.formDone, formId]; // Add formId to formDone
 
-      await prisma.user.update({
+
+      const userUpdate = await prisma.user.update({
         where: { id: userId },
-        data: { formDone: updatedFormDone }
+        data: { formDone: updatedFormDone, spinLeft: { increment: 10 } }
       });
+
+      if (!userUpdate) {
+        console.log("Error while updating User spinLeft");
+        return res.status(404).json({ message: "Can't mark this Question Now", flag: false })
+      }
+
     }
 
 
-    const formIdCreatedByAdmin = await prisma.form.findMany({
-      where: { adminId: adminId },
-      select: { id: true } // Only select the `id` field
-    });
+    // const formIdCreatedByAdmin = await prisma.form.findMany({
+    //   where: { adminId: adminId },
+    //   select: { id: true } // Only select the `id` field
+    // });
 
-    // 2. Extract the IDs into a simple array
-    const formIds = formIdCreatedByAdmin.map(form => form.id);
+    // // 2. Extract the IDs into a simple array
+    // const formIds = formIdCreatedByAdmin.map(form => form.id);
 
-    // 3. Check if both arrays have the same length and contain the same elements
-    const arraysMatch = (arr1, arr2) =>
-      arr1.length === arr2.length && arr1.every(id => arr2.includes(id));
+    // // 3. Check if both arrays have the same length and contain the same elements
+    // const arraysMatch = (arr1, arr2) =>
+    //   arr1.length === arr2.length && arr1.every(id => arr2.includes(id));
 
-    // 4. Set the flag based on whether form IDs match exactly with updatedFormDone
-    // let flag = arraysMatch(formIds,updatedFormDone);
+    // // 4. Set the flag based on whether form IDs match exactly with updatedFormDone
+    // // let flag = arraysMatch(formIds,updatedFormDone);
+
+    console.log({ message: 'Option marked and updated successfully', flag: false });
 
     res.status(200).json({ message: 'Option marked and updated successfully', flag: false });
   } catch (error) {
@@ -378,8 +400,6 @@ const getFormById = async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 };
-
-
 
 const getUncompletedForm = async (req, res) => {
   const { adminId, userId } = req.params;
