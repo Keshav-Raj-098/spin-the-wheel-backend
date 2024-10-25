@@ -718,6 +718,25 @@ function timeAgo(dateString) {
   }
 }
 
+async function resetMarkedCountForOptions(req, res) {
+  try {
+    // Update all options and set markedCount to 0
+    const updatedOptions = await prisma.options.updateMany({
+      data: {
+        markedCount: 0,
+      },
+    });
+
+    // Return a success response with the number of updated records
+    res.status(200).json({
+      message: 'All options have been reset to zero.',
+      count: updatedOptions.count,
+    });
+  } catch (error) {
+    console.error('Error resetting markedCount:', error);
+    res.status(500).json({ error: 'An error occurred while resetting markedCount.' });
+  }
+}
 
 
-export { registerAdmin, loginAdmin, resetLeaderBoard, getAllUsers, addForm, updateQuestion, updateOption, deleteForm, getForms, getFormsWithIds, getUsersAfterTaskStart, getAdminTaskDetails }
+export { registerAdmin, loginAdmin, resetLeaderBoard, getAllUsers, addForm, updateQuestion, updateOption, deleteForm, getForms, getFormsWithIds, getUsersAfterTaskStart, getAdminTaskDetails,resetMarkedCountForOptions }

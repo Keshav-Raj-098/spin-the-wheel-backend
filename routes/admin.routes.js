@@ -1,5 +1,5 @@
 import express from "express"
-import { loginAdmin, registerAdmin, resetLeaderBoard, getAllUsers, addForm, deleteForm, getForms, updateQuestion, updateOption, getFormsWithIds, getUsersAfterTaskStart,getAdminTaskDetails} from "../controllers/admin.controller.js"
+import { loginAdmin, registerAdmin, resetLeaderBoard, getAllUsers, addForm, deleteForm, getForms, updateQuestion, updateOption, getFormsWithIds, getUsersAfterTaskStart,getAdminTaskDetails,resetMarkedCountForOptions} from "../controllers/admin.controller.js"
 import { putTimer } from "../controllers/scehduleFunctions.js"
 
 const router = express.Router()
@@ -11,6 +11,7 @@ router.route("/login").post(loginAdmin)
 
 
 router.route("/resetLeaderBoard").post(resetLeaderBoard)
+router.route("/resetResponse").post(resetMarkedCountForOptions)
 
 
 router.route("/getAdmin/:adminId").get(getAdminTaskDetails)

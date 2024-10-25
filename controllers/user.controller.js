@@ -384,6 +384,7 @@ const getFormById = async (req, res) => {
         .map(question => ({
           question: question.question,
           questionId: question.id,
+          isMultipleCorrect:question.multiple,
           multiple: question.multiple, // Include `multiple` field
           options: question.options.map(option => ({
             id: option.id, // Include option ID
@@ -464,7 +465,7 @@ const createFeedback = async (req, res) => {
 
     if (existingFeedback) {
       console.error('nahi aaya response');
-      return res.status(400).json({
+      return res.status(210).json({
         message: 'Feedback already exists for this user',
       });
     }
