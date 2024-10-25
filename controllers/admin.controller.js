@@ -118,7 +118,7 @@ const getAllUsers = async (req, res) => {
 const addForm = async (req, res) => {
 
   const { adminId } = req.params;
-  const { formData } = req.body;
+  const { formData,formName } = req.body;
 
   console.log(req.body);
 
@@ -160,6 +160,7 @@ const addForm = async (req, res) => {
       const form = await prisma.form.create({
         data: {
           adminId,
+          name:formName
         }
       });
 
@@ -169,6 +170,7 @@ const addForm = async (req, res) => {
           const question = await prisma.question.create({
             data: {
               question: questionData.question,
+              multiple:questionData.multiple,        
               formId: form.id,
               options: {
                 create: questionData.options.map(optionText => ({
@@ -592,6 +594,9 @@ const getUsersAfterTaskStart = async (req, res) => {
         name: true,
         points: true,
       },
+      orderBy:{
+         points: "desc"
+      }
     });
 
     return res.status(200).json({

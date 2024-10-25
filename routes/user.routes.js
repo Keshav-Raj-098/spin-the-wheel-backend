@@ -19,7 +19,7 @@ router.route("/sendotp").post(otpSend)
 router.route("/getForm/:formId/:userId").get(getFormById)
 router.route("/getFormId/:adminId/:userId").get(getUncompletedForm)
 router.route("/feedback/:adminId/:userId").post(createFeedback)
-router.route("/mark/:userId").post(markOption)
+router.route("/mark/:userId/:adminId").post(markOption)
 
 
 export default router

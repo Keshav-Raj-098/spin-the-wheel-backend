@@ -188,16 +188,16 @@ const getLeaderBoard = async (req, res) => {
         id: true,
         name: true,
         points: true,
-        spinLeft:true
+        spinLeft: true
       },
       orderBy: {
         points: "desc"
       },
     });
-   
+
     // Step 5: Find the rank (index) of the provided userId in the sorted all-time leaderboard
     const userIndex = allUsers.findIndex(user => user.id === userId);
-   
+
     if (userIndex === -1) {
       return res.status(404).json({ message: "User not found in the leaderboard" });
     }
@@ -207,9 +207,9 @@ const getLeaderBoard = async (req, res) => {
     res.status(200).json({
       leaderBoard: sessionUsers,  // Top 3 session users
       user: {
-        rank:userIndex + 1,
-        points:thisUser.points,
-        spinLeft:thisUser.spinLeft
+        rank: userIndex + 1,
+        points: thisUser.points,
+        spinLeft: thisUser.spinLeft
 
       }        // Return 1-based index for the user's rank
     });
@@ -222,8 +222,12 @@ const getLeaderBoard = async (req, res) => {
 
 // markoption
 const markOption = async (req, res) => {
-  const { userId } = req.params
-  const { formId, questionId, optionId } = req.body;
+  const { userId, adminId } = req.params
+  const { formId, questionId, optionIds } = req.body;
+      
+  // optionId is an array of optionId
+  console.log({ userId, formId, questionId, optionIds });
+
 
   try {
     // 1. Check if the user has already marked the question
@@ -237,7 +241,7 @@ const markOption = async (req, res) => {
     });
 
     if (existingMark) {
-      return res.status(202).json({ message: 'Question already marked by user.',flag:false });
+      return res.status(202).json({ message: 'Question already marked by user.', flag: false });
     }
 
     // 2. Mark the question and update the markedCount of the option 
@@ -248,12 +252,22 @@ const markOption = async (req, res) => {
       }
     });
 
-    await prisma.options.update({
-      where: { id: optionId },
+    const optionIncrement = await prisma.options.updateMany({
+      where: {
+        id: {
+          in: optionIds, // Use the `in` operator to match any option IDs in the array
+        },
+      },
       data: {
-        markedCount: { increment: 1 }
-      }
+        markedCount: {
+          increment: 1, // Increment the `markedCount` by 1 for each matching option
+        },
+      },
     });
+    if(!optionIncrement){
+      console.log("Error while mark Count");
+      
+    }
 
     // 3. Check if all questions in the form are marked by the user
     const totalQuestions = await prisma.question.count({
@@ -269,6 +283,7 @@ const markOption = async (req, res) => {
       const user = await prisma.user.findUnique({ where: { id: userId } });
 
       const updatedFormDone = [...user.formDone, formId]; // Add formId to formDone
+
       await prisma.user.update({
         where: { id: userId },
         data: { formDone: updatedFormDone }
@@ -276,27 +291,32 @@ const markOption = async (req, res) => {
     }
 
 
-      const formIdCreatedByAdmin = await prisma.form.findMany({
-        where: { adminId: adminId },
-        select: { id: true } // Only select the `id` field
-      });
-      
-      // 2. Extract the IDs into a simple array
-      const formIds = formIdCreatedByAdmin.map(form => form.id);
-      
-      // 3. Check if both arrays have the same length and contain the same elements
-      const arraysMatch = (arr1, arr2) => 
-        arr1.length === arr2.length && arr1.every(id => arr2.includes(id));
-      
-      // 4. Set the flag based on whether form IDs match exactly with updatedFormDone
-      let flag = arraysMatch(formIds, updatedFormDone);
+    const formIdCreatedByAdmin = await prisma.form.findMany({
+      where: { adminId: adminId },
+      select: { id: true } // Only select the `id` field
+    });
 
-    res.status(200).json({ message: 'Option marked and updated successfully',flag:flag });
+    // 2. Extract the IDs into a simple array
+    const formIds = formIdCreatedByAdmin.map(form => form.id);
+
+    // 3. Check if both arrays have the same length and contain the same elements
+    const arraysMatch = (arr1, arr2) =>
+      arr1.length === arr2.length && arr1.every(id => arr2.includes(id));
+
+    // 4. Set the flag based on whether form IDs match exactly with updatedFormDone
+    // let flag = arraysMatch(formIds,updatedFormDone);
+
+    res.status(200).json({ message: 'Option marked and updated successfully', flag: false });
   } catch (error) {
     console.error('Error marking option:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 };
+
+
+
+
+
 
 const getFormById = async (req, res) => {
   const { formId, userId } = req.params; // Assuming you have the form ID from the request parameters
@@ -309,7 +329,7 @@ const getFormById = async (req, res) => {
       include: {
         questions: {
           include: {
-            options: {}, // Removed ordering for options
+            options: true, // Fetch options for each question
           },
         },
       },
@@ -337,10 +357,12 @@ const getFormById = async (req, res) => {
 
     // Format the form and filter for unmarked questions
     const formattedForm = {
+      name: form.name,
       questions: form.questions
         .map(question => ({
           question: question.question,
           questionId: question.id,
+          multiple: question.multiple, // Include `multiple` field
           options: question.options.map(option => ({
             id: option.id, // Include option ID
             option: option.option, // Extracting option text

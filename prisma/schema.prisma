@@ -46,6 +46,7 @@ model Task {
 model Form {
   id        String     @id @unique @default(uuid())
   adminId   String
+  name      String?
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   admin     admin      @relation(fields: [adminId], references: [id])
@@ -56,6 +57,7 @@ model Question {
   id          String        @id @unique @default(uuid())
   question    String
   formId      String
+  multiple    Boolean?       @default(false)
   createdAt   DateTime      @default(now())
   options     Options[]
   form        Form          @relation(fields: [formId], references: [id])
