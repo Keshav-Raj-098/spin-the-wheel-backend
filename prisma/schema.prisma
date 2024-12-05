@@ -6,63 +6,76 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
 model user {
-  id            String        @id @unique @default(uuid())
+  id            String         @id @unique @default(uuid())
   name          String
-  email         String        @unique
+  email         String         @unique
   gender        String?
   age           String?
-  points        Int           @default(0)
-  spinLeft      Int           @default(0) // Remove ? if you don't want it to be nullable
-  formDone      String[]      @default([]) // Store completed form IDs in an array
-  userQuestions UserQuestion[]
+  points        Int            @default(0)
+  spinLeft      Int            @default(0)
   Feedback      Feedback[]
+  userQuestions UserQuestion[]
+  userForms     UserForm[]
 }
 
 model admin {
-  id       String @id @unique @default(uuid())
-  username String @unique
-  password String
-  lastSessionWinners Json?  
-  forms    Form[]
-  task     Task[]
-  Feedback Feedback[]
+  id                 String     @id @unique @default(uuid())
+  username           String     @unique
+  password           String
+  lastSessionWinners Json?
+  uniqueCode         String     @unique
+  Feedback           Feedback[]
+  forms              Form[]
+  task               Task[]
+
 }
+
+model UserForm {
+  id        String   @id @unique @default(uuid())
+  userId    String
+  formId    String
+  createdAt DateTime @default(now())
+  user      user     @relation(fields: [userId], references: [id])
+  form      Form     @relation(fields: [formId], references: [id])
+
+  @@unique([userId, formId])
+}
+
 model Task {
   id            Int      @id @default(autoincrement())
   adminId       String
-  functionToRun String   // Identifier of the function to run
-  durationValue Int      // Duration value (e.g., 2, 3, etc.)
-  durationUnit  String   // Duration unit (e.g., 'minutes', 'hours', 'days')
-  admin         admin    @relation(fields: [adminId], references: [id])
+  functionToRun String
+  durationValue Int      @default(45)
+  durationUnit  String   @default("minutes")
   isCompleted   Boolean  @default(false)
-  createdAt     DateTime @default(now()) // Automatically set when the task is created
-  updatedAt     DateTime @updatedAt      // Automatically updated whenever the task is modified
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  admin         admin    @relation(fields: [adminId], references: [id])
 }
-
-
-
 
 model Form {
   id        String     @id @unique @default(uuid())
   adminId   String
-  name      String
-  isSurvey  Boolean?   
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
+  name      String
+  isSurvey  Boolean?
   admin     admin      @relation(fields: [adminId], references: [id])
   questions Question[]
+  userForms UserForm[]
 }
 
 model Question {
-  id          String        @id @unique @default(uuid())
-  question    String
-  formId      String
-  textAllowed Boolean?         @default(false)
-  multiple    Boolean?       @default(false)
-  createdAt   DateTime      @default(now())
-  options     Options[]
-  form        Form          @relation(fields: [formId], references: [id])
+  id            String         @id @unique @default(uuid())
+  question      String
+  formId        String
+  createdAt     DateTime       @default(now())
+  multiple      Boolean?       @default(false)
+  textAllowed   Boolean?       @default(false)
+  options       Options[]
+  form          Form           @relation(fields: [formId], references: [id])
   userQuestions UserQuestion[]
 }
 
@@ -70,33 +83,30 @@ model Options {
   id          String   @id @unique @default(uuid())
   option      String
   questionId  String
-  isCorrect   Boolean  @default(false)
   markedCount Int      @default(0)
   createdAt   DateTime @default(now())
+  isCorrect   Boolean  @default(false)
   question    Question @relation(fields: [questionId], references: [id])
 }
 
 model UserQuestion {
-  id         String   @id @unique @default(uuid())
-  userId     String
-  questionId String
-  userResponse String?  
-  user       user     @relation(fields: [userId], references: [id])
-  Question   Question @relation(fields: [questionId], references: [id])
-  createdAt  DateTime @default(now()) // Add this line
+  id           String   @id @unique @default(uuid())
+  userId       String
+  questionId   String
+  createdAt    DateTime @default(now())
+  userResponse String?
+  Question     Question @relation(fields: [questionId], references: [id])
+  user         user     @relation(fields: [userId], references: [id])
 
-  @@unique([userId, questionId]) // Only track that the user answered the question
+  @@unique([userId, questionId])
 }
+
 model Feedback {
-  id         String   @id @unique @default(uuid())
-  userId     String   // Foreign key for the user
-  adminId    String   // Foreign key for the admin
-  feedback   Json     // Store feedback as JSON
-  createdAt  DateTime @default(now())
-
-  user       user     @relation(fields: [userId], references: [id])  // Relation to the user
-  admin      admin    @relation(fields: [adminId], references: [id]) // Relation to the admin
+  id        String   @id @unique @default(uuid())
+  userId    String
+  adminId   String
+  feedback  Json
+  createdAt DateTime @default(now())
+  admin     admin    @relation(fields: [adminId], references: [id])
+  user      user     @relation(fields: [userId], references: [id])
 }
-
-
-

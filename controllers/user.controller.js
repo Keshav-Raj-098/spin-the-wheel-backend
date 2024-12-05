@@ -1,14 +1,50 @@
 import { prisma } from "../prisma/prisma.js";
+import jwt from 'jsonwebtoken';
+import  dotenv from "dotenv";
+
+dotenv.config();
+
+// Function to generate a token
+const generateToken = (key) => {
+
+
+  const options = {
+    expiresIn:process.env.TOKEN_EXPIRY, // Token expires in 1 hour
+  };
+
+  return jwt.sign(key, process.env.ACCESS_TOKEN_SECRET,options);
+};
+
 
 
 const UserAuth = async (req, res) => {
-  const { name, email, gender, age } = req.body;
 
-  console.log(req.body);
+  const { name, email, gender, age,uniqueCode } = req.body;
 
+  console.log({ name, email, gender, age,uniqueCode });
 
+  if (!name || !email || !uniqueCode) {
+    return res.status(400).json({ message: "All fields are required" });
+  }
 
   try {
+     // Find admin with uniqueCode
+     const admin = await prisma.admin.findUnique({
+      where: { uniqueCode },
+
+    });
+
+    console.log(admin);
+    
+
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    // Generate a token for the user
+    
+
+
     // Check if the user exists by email
     const existingUser = await prisma.user.findUnique({
       where: { email },
@@ -16,6 +52,10 @@ const UserAuth = async (req, res) => {
 
     // If user exists, attempt login
     if (existingUser) {
+      const token = generateToken({ adminId: admin.id,userId:existingUser.id });
+      console.log("This is the token",token);
+      
+
       // Check if the name matches the existing user
       if (existingUser.name !== name) {
         return res.status(404).json({ message: "User found, but name does not match" });
@@ -25,6 +65,7 @@ const UserAuth = async (req, res) => {
       return res.status(200).json({
         user: existingUser,
         message: "Login successful",
+        token
       });
     }
 
@@ -43,10 +84,15 @@ const UserAuth = async (req, res) => {
       return res.status(400).json({ message: "Server busy, can't register you" });
     }
 
+    const token = generateToken({ adminId: admin.id,userId:newUser.id });
+
+   
+
     // Successful registration
-    return res.status(201).json({
+    return res.status(200).json({
       user: newUser,
       message: "Registered successfully",
+      token
     });
 
   } catch (error) {
@@ -120,13 +166,18 @@ const updateUserPoints = async (req, res) => {
 };
 
 const getLeaderBoard = async (req, res) => {
-  const { adminId, userId } = req.params;
+  
+  
+  const {  userId } = req.params;
+  const getAdmin = req.adminId
+
+  
 
   try {
     // Step 1: Fetch the task based on adminId and functionToRun
     const task = await prisma.task.findFirst({
       where: {
-        adminId: adminId,
+        adminId: getAdmin,
         functionToRun: "sessionWinner",
       },
       select: {
@@ -134,8 +185,10 @@ const getLeaderBoard = async (req, res) => {
         updatedAt: true,  // Use updatedAt for comparison
       },
     });
-
+        
+    
     if (!task) {
+      console.log('Task not found');
       return res.status(404).json({
         message: 'Task not found',
       });
@@ -304,17 +357,19 @@ const markOption = async (req, res) => {
 
     if (markedQuestionsByUser === totalQuestions) {
       // Retrieve the user and update formDone when all questions are marked
-      const user = await prisma.user.findUnique({ where: { id: userId } });
-
-      const updatedFormDone = [...user.formDone, formId]; // Add formId to formDone
-
-
-      const userUpdate = await prisma.user.update({
+      const user =   await prisma.user.update({
         where: { id: userId },
-        data: { formDone: updatedFormDone, spinLeft: { increment: 10 } }
-      });
+        data: { spinLeft: { increment: 10 } },});
 
-      if (!userUpdate) {
+      const userFormRelation = await prisma.userForm.create({
+        data: {
+          userId,
+          formId
+        }
+      })
+         
+
+      if (!userFormRelation) {
         console.log("Error while updating User spinLeft");
         return res.status(404).json({ message: "Can't mark this Question Now", flag: false })
       }
@@ -383,22 +438,71 @@ const markOption = async (req, res) => {
 };
 
 
+const getUncompletedForm = async (req, res) => {
+  const { userId } = req.params;
+  const adminId = req.adminId;
 
+  console.log({ userId, adminId });
 
+  if (!userId) {
+    return res.status(400).json({ message: 'User ID is required' });
 
+  }
 
-const getFormById = async (req, res) => {
-  const { formId, userId } = req.params; // Assuming you have the form ID from the request parameters
+  if (!adminId) {
+    return res.status(400).json({ message: 'Admin ID is required' });
+  }
+  
 
   try {
+    // Fetch the forms created by the admin
+    const forms = await prisma.form.findMany({
+      where: { adminId },
+      select: { id: true },
+    });
+
+    console.log(forms);
+    
+    
+    
+    if (!forms) {
+      return res.status(404).json({ message: 'No forms found for the given admin.' });
+    }
+    
+    // Extract form IDs created by the admin
+    const formIds = forms.map((form) => form.id);
+    
+
+    // Fetch completed forms for the user
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { userForms: { select: { formId: true } } },
+    });
+
+    console.log(formIds);
+    
+
+    const completedFormIds = user?.userForms?.map((uf) => uf.formId) || [];
+    
+    console.log(completedFormIds);
+    
+    // Find the first uncompleted form ID
+    const uncompletedFormId = formIds.find((formId) => !completedFormIds.includes(formId));
+
+    if (!uncompletedFormId) {
+      return res.status(206).json({ message: 'No uncompleted forms found' });
+    }
+
+    console.log( uncompletedFormId );
+    
+
+    // Fetch details of the first uncompleted form
     const form = await prisma.form.findUnique({
-      where: {
-        id: formId,
-      },
+      where: { id: uncompletedFormId },
       include: {
         questions: {
           include: {
-            options: true, // Fetch options for each question
+            options: true,
           },
         },
       },
@@ -413,90 +517,50 @@ const getFormById = async (req, res) => {
       where: {
         userId,
         questionId: {
-          in: form.questions.map(question => question.id),
+          in: form.questions.map((q) => q.id),
         },
       },
-      select: {
-        questionId: true,
-      },
+      select: { questionId: true },
     });
 
-    // Create a Set of marked question IDs for quick lookup
-    const markedQuestionIds = new Set(markedQuestions.map(q => q.questionId));
+    const markedQuestionIds = new Set(markedQuestions.map((q) => q.questionId));
 
-    // Format the form and filter for unmarked questions
+    // Format the form and filter unmarked questions
     const formattedForm = {
       name: form.name,
-      isSurvey:form.isSurvey,
+      isSurvey: form.isSurvey,
       questions: form.questions
-        .map(question => ({
-          question: question.question,
-          questionId: question.id,
-          isMultipleCorrect: question.multiple,
-          textAllowed:question.textAllowed,
-          options: question.options.map(option => ({
-            id: option.id, // Include option ID
-            option: option.option, // Extracting option text
+        .filter((q) => !markedQuestionIds.has(q.id)) // Only unmarked questions
+        .map((q) => ({
+          question: q.question,
+          questionId: q.id,
+          isMultipleCorrect: q.multiple,
+          textAllowed: q.textAllowed,
+          options: q.options.map((opt) => ({
+            id: opt.id,
+            option: opt.option,
           })),
-          isMarked: markedQuestionIds.has(question.id), // Add boolean field to check if the question is marked
-        }))
-        .filter(question => !question.isMarked), // Only keep questions that are not marked
+        })),
     };
 
-    res.status(200).json(formattedForm);
-  } catch (error) {
-    console.error('Error fetching form:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
-  }
-};
-
-const getUncompletedForm = async (req, res) => {
-  const { adminId, userId } = req.params;
-
-  try {
-    // Fetch the forms created by the admin
-    const forms = await prisma.form.findMany({
-      where: {
-        adminId: adminId,
-      },
-      select: {
-        id: true, // Select only the form ID
-      },
-    });
-
-    if (!forms.length) {
-      return res.status(404).json({ message: 'No forms found for the given admin.' });
+    if(!formattedForm){
+      return res.status(404).json({ message: 'No uncompleted forms found' });
     }
-
-    // Extract form IDs created by the admin
-    const formIds = forms.map((form) => form.id);
-
-    // Fetch the user's formDone array (completed form IDs)
-    const user = await prisma.user.findUnique({
-      where: {
-        id: userId,
-      },
-      select: {
-        formDone: true, // Select only formDone
-      },
-    });
-
-    // Default to an empty array if formDone is undefined/null
-    const completedForms = user?.formDone || [];
-
-    // Filter out the forms that the user has already completed
-    const uncompletedFormIds = formIds.filter((formId) => !completedForms.includes(formId));
-
-    // Return the array of uncompleted form IDs
-    res.status(200).json(uncompletedFormIds);
+    
+    console.log("This is your form : ",{formId:uncompletedFormId,form:formattedForm});
+    
+    res.status(200).json({formId:uncompletedFormId,form:formattedForm});
   } catch (error) {
     console.error('Error fetching uncompleted form IDs:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 };
 
+
+
 const createFeedback = async (req, res) => {
-  const { adminId, userId } = req.params;
+  const {  userId } = req.params;
+  const adminId = req.adminId
   const { stars, suggestion, abtTheGame, notLiked } = req.body;
 
   console.log({ stars, suggestion, abtTheGame, notLiked });
@@ -513,7 +577,7 @@ const createFeedback = async (req, res) => {
 
     if (existingFeedback) {
       console.error('nahi aaya response');
-      return res.status(210).json({
+      return res.status(408).json({
         message: 'Feedback already exists for this user',
       });
     }
@@ -558,6 +622,41 @@ const createFeedback = async (req, res) => {
 
 
 
+async function checkUserFeedback(req,res){
+
+  const {userId} = req.params; 
+   
+  console.log(userId);
+  
+  if(!userId){
+  return res.status(402).json({message:"User Id Required"})
+  }
+
+  try {
+    const feedback = await prisma.feedback.findFirst({
+      where:{
+        userId:userId
+      }
+    })
+
+    if(!feedback){
+      console.log("Not Found");
+      
+      return res.status(403).json({message:"No Feedback Found"})
+    }
+
+    console.log("Found");
+
+    res.status(203).json({message:"You have already completed the game"})
+  } catch (error) {
+    console.error('Error fetching feedback:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+
+}
 
 
-export { UserAuth, updateUserPoints, getLeaderBoard, getFormById, getUncompletedForm, markOption, createFeedback }
+
+
+
+export { UserAuth, updateUserPoints, getLeaderBoard, getUncompletedForm, markOption, createFeedback,checkUserFeedback }
