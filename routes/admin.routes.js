@@ -1,6 +1,7 @@
 import express from "express"
-import { loginAdmin, registerAdmin, resetLeaderBoard, getAllUsers, addForm, deleteForm, getForms, updateQuestion, updateOption, getFormsWithIds, getUsersAfterTaskStart,getAdminTaskDetails,resetMarkedCountForOptions} from "../controllers/admin.controller.js"
+import { loginAdmin, registerAdmin, resetLeaderBoard, getAllUsers, addForm, deleteForm, getForms, updateQuestion, updateOption, getFormsWithIds, getUsersAfterTaskStart,getAdminTaskDetails,resetResponse} from "../controllers/admin.controller.js"
 import { putTimer } from "../controllers/scehduleFunctions.js"
+import getAdmin from "../middleware/getAmin.middleware.js"
 
 const router = express.Router()
 
@@ -10,25 +11,25 @@ router.route("/register").post(registerAdmin)
 router.route("/login").post(loginAdmin)
 
 
-router.route("/resetLeaderBoard").post(resetLeaderBoard)
-router.route("/resetResponse").post(resetMarkedCountForOptions)
+router.route("/resetLeaderBoard").post(getAdmin,resetLeaderBoard)
 
 
-router.route("/getAdmin/:adminId").get(getAdminTaskDetails)
-router.route("/getAllusers/:adminId").get(getAllUsers)
-router.route("/getSessionusers/:adminId/:functionName").get(getUsersAfterTaskStart)
+
+router.route("/getAdmin").get(getAdmin,getAdminTaskDetails)
+router.route("/getAllusers").get(getAdmin,getAllUsers)
+router.route("/getSessionusers/:functionName").get(getAdmin,getUsersAfterTaskStart)
 
 
 // Timer
-router.route("/putTimer/:adminId").post(putTimer)
+router.route("/putTimer").post(getAdmin,putTimer)
 
-router.route("/addForm/:adminId").post(addForm)
-
-
-router.route("/getForm/:adminId").get(getForms)
-router.route("/getFormWithId/:adminId").get(getFormsWithIds)
+router.route("/addForm").post(getAdmin,addForm)
 
 
+router.route("/getForm").get(getAdmin,getForms)
+router.route("/getFormWithId").get(getAdmin,getFormsWithIds)
+
+router.route("/resetResponse/:formId").delete(getAdmin,resetResponse)
 router.route("/updateQuestion").put(updateQuestion)
 router.route("/updateOption").put(updateOption)
 router.route("/delete/:formId").delete(deleteForm)

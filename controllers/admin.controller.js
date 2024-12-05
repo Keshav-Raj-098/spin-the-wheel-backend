@@ -1,21 +1,42 @@
 import { prisma } from "../prisma/prisma.js";
 import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import  dotenv from "dotenv";
 
+dotenv.config();
+// Function to generate a token
+const generateToken = (adminId) => {
+  const payload = { adminId };
+  const options = {
+    expiresIn: process.env.TOKEN_EXPIRY, // Token expires in 1 hour
+  };
+
+  return jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, options);
+};
 
 // Function to create an admin
 const registerAdmin = async (req, res) => {
-  const { username, password } = req.body;
+  const { username, password, uniqueCode } = req.body;
+
+  if (!username || !password || !uniqueCode) {
+    return res.status(400).json({ message: 'Username, password, and unique code are required' });
+  }
 
   try {
-
     const existingAdmin = await prisma.admin.findUnique({
       where: { username },
     });
 
     if (existingAdmin) {
-      return res.status(400).json({ message: 'Username already taken' });
+      return res.status(408).json({ message: 'Username already taken' });
     }
+    const existingUniqueCode = await prisma.admin.findUnique({
+      where: { uniqueCode },
+    });
 
+    if (existingUniqueCode) {
+      return res.status(409).json({ message: 'Unique code already in use' });
+    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -24,10 +45,34 @@ const registerAdmin = async (req, res) => {
       data: {
         username,
         password: hashedPassword,
+        uniqueCode, // Add unique code here
       },
     });
 
-    res.status(201).json(newAdmin);
+    
+    
+    const token = generateToken(newAdmin.id);
+    
+     const timerTask1 = await prisma.task.create({
+      data: {
+        functionToRun:"setAllCareerPointsToZero",
+        adminId:newAdmin.id,
+      }
+     })
+
+     const timerTask2 = await prisma.task.create({
+      data: {
+        functionToRun:"sessionWinner",
+        adminId:newAdmin.id,
+      }
+     })
+
+     if(!timerTask1 || !timerTask2){
+        return res.status(500).json({ message: 'Error creating timer tasks' });
+     }
+
+
+    res.status(201).json({ admin:newAdmin, token });
   } catch (error) {
     console.error('Error creating admin:', error);
     res.status(500).json({ message: 'Internal server error' });
@@ -36,18 +81,13 @@ const registerAdmin = async (req, res) => {
 
 // Function to log in an admin
 const loginAdmin = async (req, res) => {
-  const { username, password, secretKey } = req.body;
+  const { username, password } = req.body;
 
   console.log(req.body); // Log incoming request body
 
-  // Validate the presence of the secret key
-  if (secretKey !== process.env.ADMIN_SECRET_KEY) {
-    return res.status(403).json({ message: 'Secret Key Not Matched' });
-  }
-
   // Validate the presence of required fields
   if (!username || !password) {
-    return res.status(400).json({ message: 'Username and password are required.' });
+    return res.status(400).json({ message: 'Username and password are required. *****' });
   }
 
   try {
@@ -61,19 +101,56 @@ const loginAdmin = async (req, res) => {
       return res.status(401).json({ message: 'Invalid username or password' });
     }
 
+    const token = generateToken(admin.id);
+
+    console.log(token);
+    
+
     // Successful login
-    return res.status(200).json({ message: 'Login successful', admin });
+    return res.status(200).json({ message: 'Login successful', admin, token });
   } catch (error) {
     console.error('Error logging in admin:', error);
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
 
-// Reset Leaderboard
+// Reset Leaderboard **************************************
 const resetLeaderBoard = async (req, res) => {
+  const adminId = req.adminId
   try {
+      const Forms = await prisma.admin.findMany({
+      where:{adminId:adminId}
+
+    }) 
+    console.log(Forms);
+   
+    if(Forms.length === 0){ 
+      res.status(404).json({ message: 'Create Form First' });
+    }
+
+    const formIds = Forms.map((form) => form.id);
+    
+    const uniqueUserIds = await prisma.userForm.findMany({
+      where: {
+        formId: { in: formIds },
+      },
+      select: {
+        userId: true,
+      },
+      distinct:['userId']
+    });
+    
+    // Extract unique userIds
+    const userIds = [...new Set(uniqueUserIds.map(item => item.userId))];
+    
+    console.log(userIds);
+
+
     // Update all users' points to 0
     const resetStatus = await prisma.user.updateMany({
+      where:{
+        id:{in:userIds}
+      },
       data: {
         points: 0,
       },
@@ -90,11 +167,35 @@ const resetLeaderBoard = async (req, res) => {
   }
 };
 
-// get all users
+// get all users ******************************************
 const getAllUsers = async (req, res) => {
+  const adminId  = req.adminId;
+
+  console.log(adminId);
+  
   try {
+    const forms = await prisma.form.findMany({
+      where: { adminId:adminId },
+      select: {
+        userForms: {
+          select: {
+            userId: true
+          }
+        }
+      }
+    });
+ 
+
+    if(!forms){ 
+      res.status(404).json({ message: 'Create Form First' });
+    }
+
+    const userIds = [...new Set(forms.flatMap(form => form.userForms.map(uf => uf.userId)))];
+    
+    console.log("getAllusers -> ",userIds);
     // Fetch all users from the database
     const users = await prisma.user.findMany({
+      where: { id: { in: userIds } },
       select: {
         name: true,    // Scalar fields like name
         gender: true,  // Optional scalar field
@@ -117,19 +218,18 @@ const getAllUsers = async (req, res) => {
 
 const addForm = async (req, res) => {
 
-  const { adminId } = req.params;
-  const { formData,isSurvey,formName } = req.body;
-
+  const adminId  = req.adminId;
+  const { formData, isSurvey, formName } = req.body;
+  
+  console.log(adminId);
+  
   console.log(req.body);
 
   try {
-    
-    
-
     // Validation
-    if (!adminId || !formData || isSurvey || !Array.isArray(formData)) {
+    if (!adminId || !formData || !Array.isArray(formData) || typeof isSurvey !== 'boolean' || !formName) {
       return res.status(400).json({
-        message: "Invalid input: adminId and formData array are required"
+        message: "Invalid input: adminId, formData array, isSurvey, and formName are required"
       });
     }
 
@@ -156,7 +256,7 @@ const addForm = async (req, res) => {
     
       if (!allQuestionsValid) {
         console.log("Each question must have at least one correct option when isSurvey is false.");
-        return res.status(400).json({ message: "Each question must have at least one correct option when isSurvey is false." });
+        return res.status(400).json({ message:"Each question must have at least one correct option when isSurvey is false."});
       }
     }
 
@@ -236,7 +336,7 @@ const addForm = async (req, res) => {
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
-};
+}
 
 
 const updateOption = async (req, res) => {
@@ -308,8 +408,9 @@ const updateQuestion = async (req, res) => {
 
 
 const getForms = async (req, res) => {
-  const { adminId } = req.params; // Assuming you have admin ID from the authenticated user
-
+  const adminId  = req.adminId; // Assuming you have admin ID from the authenticated user
+    
+  console.log("AdminId",adminId)
   try {
     const forms = await prisma.form.findMany({
       where: {
@@ -334,9 +435,15 @@ const getForms = async (req, res) => {
         updatedAt: 'asc', // Order forms by earliest updated first
       },
     });
+      
+    if(!forms){
+      return res.status(209).json({ message: 'No forms found' });
+    }
 
     // Format the forms without `createdAt` and `updatedAt`
     const formattedForms = forms.map(form => ({
+      name: form.name,
+      id:form.id,
       questions: form.questions.map(question => ({
         question: question.question,
         options: question.options.map(option => ({
@@ -345,7 +452,7 @@ const getForms = async (req, res) => {
         })),
       })),
     }));
-
+    
     res.status(200).json(formattedForms);
   } catch (error) {
     console.error('Error fetching forms:', error);
@@ -355,7 +462,7 @@ const getForms = async (req, res) => {
 
 
 const getFormsWithIds = async (req, res) => {
-  const { adminId } = req.params; // Assuming you have admin ID from the authenticated user
+  const adminId  = req.adminId; // Assuming you have admin ID from the authenticated user
 
   try {
     const forms = await prisma.form.findMany({
@@ -366,24 +473,17 @@ const getFormsWithIds = async (req, res) => {
         questions: {
           include: {
             options: {
-              orderBy: {
-                createdAt: 'asc', // Order options by earliest created first
-              },
+              
             },
           },
-          orderBy: {
-            createdAt: 'asc', // Order questions by earliest created first
-          },
         },
-      },
-      orderBy: {
-        updatedAt: 'asc', // Order forms by earliest updated first
       },
     });
 
     // Format the forms without `createdAt` and `updatedAt`
     const formattedForms = forms.map(form => ({
       formid: form.id,
+      name: form.name,
       form: form.questions.map(question => ({
         question: question.question,
         questionId: question.id,
@@ -393,6 +493,10 @@ const getFormsWithIds = async (req, res) => {
         })),
       })),
     }));
+
+    if(!forms){
+      return res.status(209).json({ message: 'No forms found' });
+    }
 
     res.status(200).json(formattedForms);
   } catch (error) {
@@ -407,16 +511,9 @@ const deleteForm = async (req, res) => {
   const { formId } = req.params;
   try {
 
-    // Validate formId format (assuming UUID)
-    if (!formId || !/^[0-9a-fA-F-]{36}$/.test(formId)) {
-      return res.status(400).json({
-        message: "Invalid form ID format"
-      });
-    }
-
     // Use a transaction to ensure all operations succeed or none do
     await prisma.$transaction(async (tx) => {
-      // Check if form exists and get related data in a single query
+      // Step 1: Check if the form exists
       const form = await tx.form.findUnique({
         where: { id: formId },
         include: {
@@ -428,91 +525,36 @@ const deleteForm = async (req, res) => {
           }
         }
       });
-
+    
       if (!form) {
         throw new Error('Form not found');
       }
-
-      // Get all question IDs for this form
+    
+      // Step 2: Collect question IDs
       const questionIds = form.questions.map(q => q.id);
-
-      // Step 1: Update users' formDone arrays
-      // First, get all users who have this form in their formDone array
-      const usersWithForm = await tx.user.findMany({
-        where: {
-          formDone: {
-            has: formId
-          }
-        },
-        select: {
-          id: true,
-          formDone: true
-        }
-      });
-
-      // Update each user's formDone array
-      if (usersWithForm.length > 0) {
-        await tx.user.updateMany({
-          where: {
-            id: {
-              in: usersWithForm.map(u => u.id)
-            }
-          },
-          data: {
-            formDone: {
-              set: [] // Clear array first
-            }
-          }
+    
+      // Step 3: Delete related records
+      if (questionIds.length > 0) {
+        await tx.userQuestion.deleteMany({
+          where: { questionId: { in: questionIds } }
         });
-
-        // Update each user individually with their filtered formDone array
-        await Promise.all(
-          usersWithForm.map(user =>
-            tx.user.update({
-              where: { id: user.id },
-              data: {
-                formDone: {
-                  set: user.formDone.filter(f => f !== formId)
-                }
-              }
-            })
-          )
-        );
+    
+        await tx.options.deleteMany({
+          where: { questionId: { in: questionIds } }
+        });
+    
+        await tx.question.deleteMany({
+          where: { formId }
+        });
       }
-
-      // Step 2: Delete all related records in the correct order
-      // Delete UserQuestion records
-      await tx.userQuestion.deleteMany({
-        where: {
-          questionId: {
-            in: questionIds
-          }
-        }
-      });
-
-      // Delete Options records
-      await tx.options.deleteMany({
-        where: {
-          questionId: {
-            in: questionIds
-          }
-        }
-      });
-
-      // Delete Question records
-      await tx.question.deleteMany({
-        where: {
-          formId: formId
-        }
-      });
-
-      // Finally, delete the Form
-      await tx.form.delete({
-        where: {
-          id: formId
-        }
-      });
+    
+      // Delete user forms, if any
+      await tx.userForm.deleteMany({ where: { formId } });
+    
+      // Step 4: Delete the form itself
+      await tx.form.delete({ where: { id: formId } });
     });
+    
 
     return res.status(200).json({
       success: true,
@@ -553,9 +595,10 @@ const deleteForm = async (req, res) => {
 };
 
 
-
 const getUsersAfterTaskStart = async (req, res) => {
-  const { adminId, functionName } = req.params;
+  const { functionName } = req.params;
+
+  const adminId = req.adminId;
 
   try {
     // Step 1: Find the task using adminId and functionToRun
@@ -576,49 +619,57 @@ const getUsersAfterTaskStart = async (req, res) => {
       });
     }
 
+    console.log(task);
+    
+
     const { updatedAt } = task; // Use updatedAt instead of startTime
 
-    // Step 2: Find unique userIds from UserQuestion where createdAt is after updatedAt
-    const userQuestions = await prisma.userQuestion.findMany({
-      where: {
-        createdAt: {
-          gt: updatedAt,  // created after the task's updatedAt
-        },
-      },
-      select: {
-        userId: true,
-      },
-      distinct: ['userId'],  // Ensure we get unique userIds
-    });
 
-    const userIds = userQuestions.map((uq) => uq.userId);
-
-    if (userIds.length === 0) {
-      return res.status(200).json({
-        message: 'No users found after the task\'s updated time',
-        users: [],
-      });
-    }
-
-    // Step 3: Fetch the users based on the found userIds, and retrieve their name and points
-    const users = await prisma.user.findMany({
-      where: {
-        id: {
-          in: userIds,
-        },
+    const formCreatedByAdmin = await prisma.form.findMany({
+      where:{
+        adminId:adminId
       },
-      select: {
-        name: true,
-        points: true,
-      },
-      orderBy:{
-         points: "desc"
+      select:{
+        id:true
       }
+    })
+
+    const formIds = formCreatedByAdmin.map(form => form.id);
+
+    const uniqueUserIds = await prisma.userForm.findMany({
+      where: {
+      formId: { in: formIds },
+      createdAt: { gt: updatedAt },
+      },
+      select: {
+      userId: true,
+      },
+      distinct: ['userId'],
     });
+
+    const userIds = uniqueUserIds.map((item) => item.userId);
+
+    const getUser = await prisma.user.findMany({
+      where: {
+      id: { in: userIds },
+      },
+      select: {
+      name: true,
+      points: true,
+      },
+      orderBy: {
+      points: "desc",
+      },
+    });
+
+    console.log(getUser);
+    
+
+    
 
     return res.status(200).json({
       message: 'Users retrieved successfully',
-      users: users,
+      users: getUser,
     });
 
   } catch (error) {
@@ -632,7 +683,7 @@ const getUsersAfterTaskStart = async (req, res) => {
 
 
 const getAdminTaskDetails = async (req, res) => {
-  const adminId = req.params.adminId;
+  const adminId = req.adminId;
 
   try {
     // Fetch the admin with the lastSessionWinners and all associated tasks
@@ -660,8 +711,8 @@ const getAdminTaskDetails = async (req, res) => {
       const timeLeft = Math.max(0, taskEndTime - currentTime);
 
       tasksWithDetails[task.functionToRun] = {
-        updatedAt: timeAgo(task.updatedAt),
-        timeLeft: formatTimeLeft(timeLeft), // Format it to a readable string
+        updatedAt:convertToIST(task.updatedAt),
+        timeLeft:convertToIST(taskEndTime), // Format it to a readable string
       };
     });
 
@@ -691,63 +742,75 @@ const getDurationMultiplier = (unit) => {
   }
 };
 
-// Helper function to format time left
-const formatTimeLeft = (milliseconds) => {
-  const sec = Math.floor((milliseconds / 1000) % 60);
-  const min = Math.floor((milliseconds / (1000 * 60)) % 60);
-  const hr = Math.floor((milliseconds / (1000 * 60 * 60)) % 24);
-  const days = Math.floor(milliseconds / (1000 * 60 * 60 * 24));
-
-  // Create an array to hold time parts
-  const timeParts = [];
-
-  if (days > 0) timeParts.push(`${days}day${days > 1 ? 's' : ''}`);
-  if (hr > 0) timeParts.push(`${hr}hour${hr > 1 ? 's' : ''}`);
-  if (min > 0) timeParts.push(`${min}min${min > 1 ? 's' : ''}`);
-  // if (sec > 0) timeParts.push(`${sec}sec${sec > 1 ? 's' : ''}`);
-
-  // Join the parts into a single string, or return null if all parts are zero
-  return timeParts.length > 0 ? timeParts.join(' ') : null;
-};
-
-
-function timeAgo(dateString) {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffInSeconds = Math.floor((now - date) / 1000);
-
-  const seconds = diffInSeconds;
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-
-
-  if (seconds < 60) {
-    return `${seconds} seconds ago`;
-  } else if (minutes < 60) {
-    return `${minutes} minutes ago`;
-  } else if (hours < 24) {
-    return `${hours} hours ago`;
-  } else if (days < 7) {
-    return `${days} days ago`;
-  } else {
-    return date.toLocaleDateString();
-  }
+function convertToIST(utcTime) {
+  const utcDate = new Date(utcTime); // Convert the string to a Date object
+  
+  // Format the date in IST directly
+  return utcDate.toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata', // Set timezone to IST
+    hour12: true,             // 12-hour format
+  });
 }
 
-async function resetMarkedCountForOptions(req, res) {
+
+async function resetResponse(req, res) {
+
+  const {formId} = req.params
+
+  if(!formId){
+    return res.status(402).json({message:"Form Id Required"})
+  }
   try {
-    // Update all options and set markedCount to 0
-    const updatedOptions = await prisma.options.updateMany({
-      data: {
-        markedCount: 0,
-      },
-    });
+    
+        // Find all questions related to the given formId
+        const questions = await prisma.question.findMany({
+          where: {
+            formId: formId,
+          },
+          select: {
+            id: true, // Retrieve only the question IDs
+          },
+        });
+
+        if(!questions){
+          return res.status(403).json({message:"This Form does not contain any Question"})
+        }
+    
+        // Extract question IDs
+        const questionIds = questions.map((q) => q.id);
+    
+          // Reset markedCount for all options related to these questions
+          const result = await prisma.options.updateMany({
+            where: {
+              questionId: {
+                in: questionIds, // Match options linked to the question IDs
+              },
+            },
+            data: {
+              markedCount: 0, // Set markedCount to 0
+            },
+          });
+    
+        
+          const deleteResponse = await prisma.userQuestion.deleteMany({
+            where:{
+              questionId:{
+                in:questionIds
+              }
+            }
+          })
+
+          const deleteFormDone = await prisma.userForm.deleteMany({
+            where:{
+              formId:formId
+            }
+          })
+        
+   
 
     // Return a success response with the number of updated records
     res.status(200).json({
-      message: 'All options have been reset to zero.',
-      count: updatedOptions.count,
+      message: 'Reset response Successfull',
     });
   } catch (error) {
     console.error('Error resetting markedCount:', error);
@@ -756,4 +819,5 @@ async function resetMarkedCountForOptions(req, res) {
 }
 
 
-export { registerAdmin, loginAdmin, resetLeaderBoard, getAllUsers, addForm, updateQuestion, updateOption, deleteForm, getForms, getFormsWithIds, getUsersAfterTaskStart, getAdminTaskDetails,resetMarkedCountForOptions }
+
+export { registerAdmin, loginAdmin, resetLeaderBoard, getAllUsers, addForm, updateQuestion, updateOption, deleteForm, getForms, getFormsWithIds, getUsersAfterTaskStart, getAdminTaskDetails,resetResponse }

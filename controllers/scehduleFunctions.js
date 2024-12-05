@@ -61,7 +61,7 @@ const sessionWinner = async (adminId, functionName) => {
     const { createdAt, id: taskId } = task;
 
     // Step 2: Find unique userIds from UserQuestion where createdAt is after the task's createdAt
-    const userQuestions = await prisma.userQuestion.findMany({
+    const userQuestions = await prisma.userForm.findMany({
       where: {
         createdAt: {
           gt: createdAt,  // created after the task's createdAt
@@ -183,7 +183,7 @@ export const scheduleTask = (task) => {
 };
 
 export const putTimer = async (req, res) => {
-  const { adminId } = req.params;
+  const adminId  = req.adminId;
   const taskData = req.body; // Expecting a single task object
 
   console.log(req.body);
