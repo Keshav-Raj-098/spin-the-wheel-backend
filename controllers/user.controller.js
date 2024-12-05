@@ -29,10 +29,9 @@ const UserAuth = async (req, res) => {
 
   try {
      // Find admin with uniqueCode
-     const admin = await prisma.admin.findUnique({
-      where: { uniqueCode },
-
-    });
+    const admin = await prisma.admin.findFirst({
+     where: { uniqueCode },
+      });
 
     console.log(admin);
     
