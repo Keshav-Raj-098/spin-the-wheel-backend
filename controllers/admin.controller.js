@@ -2,6 +2,7 @@ import { prisma } from "../prisma/prisma.js";
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import  dotenv from "dotenv";
+import { Parser } from 'json2csv';
 
 dotenv.config();
 // Function to generate a token
@@ -24,14 +25,14 @@ const registerAdmin = async (req, res) => {
 
   try {
     const existingAdmin = await prisma.admin.findUnique({
-      where: { username },
+      where: { username }
     });
 
     if (existingAdmin) {
       return res.status(408).json({ message: 'Username already taken' });
     }
     const existingUniqueCode = await prisma.admin.findUnique({
-      where: { uniqueCode },
+      where: { uniqueCode: uniqueCode },
     });
 
     if (existingUniqueCode) {
@@ -117,8 +118,11 @@ const loginAdmin = async (req, res) => {
 // Reset Leaderboard **************************************
 const resetLeaderBoard = async (req, res) => {
   const adminId = req.adminId
+
+   console.log(adminId);
+   
   try {
-      const Forms = await prisma.admin.findMany({
+      const Forms = await prisma.form.findMany({
       where:{adminId:adminId}
 
     }) 
@@ -817,7 +821,61 @@ async function resetResponse(req, res) {
     res.status(500).json({ error: 'An error occurred while resetting markedCount.' });
   }
 }
+const downloadData = async (req, res) => {
+  const adminId = req.adminId;
 
+  try {
+    // Fetch forms for the admin
+    const forms = await prisma.form.findMany({
+      where: { adminId: adminId },
+      select: {
+        userForms: {
+          select: {
+            userId: true,
+          },
+        },
+      },
+    });
 
+    if (!forms || forms.length === 0) {
+      return res.status(404).json({ message: 'Create Form First' });
+    }
 
-export { registerAdmin, loginAdmin, resetLeaderBoard, getAllUsers, addForm, updateQuestion, updateOption, deleteForm, getForms, getFormsWithIds, getUsersAfterTaskStart, getAdminTaskDetails,resetResponse }
+    // Extract unique userIds
+    const userIds = [
+      ...new Set(forms.flatMap((form) => form.userForms.map((uf) => uf.userId))),
+    ];
+
+    // Fetch user details
+    const data = await prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: {
+        name: true,
+        email: true,
+        gender: true,
+        age: true,
+      },
+    });
+
+    if (!data || data.length === 0) {
+      return res.status(404).send('No data available');
+    }
+
+    // Define fields for the CSV (ensure the header names are consistent)
+    const fields = ['name', 'email', 'gender', 'age'];  // Match the selected fields from Prisma
+    const json2csvParser = new Parser({ fields });
+    const csv = json2csvParser.parse(data);
+
+    // Set headers for file download
+    res.setHeader('Content-Disposition', 'attachment; filename="userData.csv"');
+    res.setHeader('Content-Type', 'text/csv');
+
+    // Send CSV as response
+    return res.status(200).send(csv);
+  } catch (error) {
+    console.error('Error downloading data:', error);
+    return res.status(500).send('Server Error');
+  }
+};
+
+export { registerAdmin, loginAdmin, resetLeaderBoard, getAllUsers, addForm, updateQuestion, updateOption, deleteForm, getForms, getFormsWithIds, getUsersAfterTaskStart, getAdminTaskDetails,resetResponse,downloadData };

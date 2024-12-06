@@ -1,5 +1,5 @@
 import express from "express"
-import { loginAdmin, registerAdmin, resetLeaderBoard, getAllUsers, addForm, deleteForm, getForms, updateQuestion, updateOption, getFormsWithIds, getUsersAfterTaskStart,getAdminTaskDetails,resetResponse} from "../controllers/admin.controller.js"
+import { loginAdmin, registerAdmin, resetLeaderBoard, getAllUsers, addForm, deleteForm, getForms, updateQuestion, updateOption, getFormsWithIds, getUsersAfterTaskStart,getAdminTaskDetails,resetResponse,downloadData} from "../controllers/admin.controller.js"
 import { putTimer } from "../controllers/scehduleFunctions.js"
 import getAdmin from "../middleware/getAmin.middleware.js"
 
@@ -28,6 +28,8 @@ router.route("/addForm").post(getAdmin,addForm)
 
 router.route("/getForm").get(getAdmin,getForms)
 router.route("/getFormWithId").get(getAdmin,getFormsWithIds)
+
+router.route("/download").get(getAdmin,downloadData)
 
 router.route("/resetResponse/:formId").delete(getAdmin,resetResponse)
 router.route("/updateQuestion").put(updateQuestion)

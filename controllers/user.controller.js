@@ -51,7 +51,7 @@ const UserAuth = async (req, res) => {
 
     // If user exists, attempt login
     if (existingUser) {
-      const token = generateToken({ adminId: admin.id,userId:existingUser.id });
+      const token = generateToken({ adminId: admin.id});
       console.log("This is the token",token);
       
 
@@ -620,39 +620,61 @@ const createFeedback = async (req, res) => {
 };
 
 
+async function checkUserFeedback(req, res) {
+  const { userId } = req.params;
+  const adminId = req.adminId;
 
-async function checkUserFeedback(req,res){
-
-  const {userId} = req.params; 
-   
-  console.log(userId);
-  
-  if(!userId){
-  return res.status(402).json({message:"User Id Required"})
+  if (!userId || !adminId) {
+    return res.status(402).json({ message: "User Id Required" });
   }
 
   try {
+    // Fetch user feedback
     const feedback = await prisma.feedback.findFirst({
-      where:{
-        userId:userId
-      }
-    })
+      where: {
+        userId: userId,
+        adminId: adminId,
+      },
+    });
 
-    if(!feedback){
-      console.log("Not Found");
-      
-      return res.status(403).json({message:"No Feedback Found"})
+    // Fetch all forms associated with the admin
+    const forms = await prisma.form.findMany({
+      where: { adminId: adminId },
+      select: { id: true },
+    });
+
+    const formIds = forms.map((form) => form.id);
+
+    // Count total forms and forms completed by the user
+    const formCount = forms.length; // Use length for `forms` fetched above
+    const userFormCount = await prisma.userForm.count({
+      where: {
+        userId: userId,
+        formId: { in: formIds },
+      },
+    });
+
+    // Logs for debugging
+    console.log("Feedback:", feedback);
+    console.log("Form Count:", formCount);
+    console.log("User Form Count:", userFormCount);
+
+    // Check conditions and respond accordingly
+    if (!feedback && formCount === userFormCount) {
+      return res.status(205).json({ message: "Forms Completed. Fill the Feedback" });
     }
 
-    console.log("Found");
+    if (!feedback && formCount > userFormCount) {
+      return res.status(209).json({ message: "Forms remaining" });
+    }
 
-    res.status(203).json({message:"You have already completed the game"})
+    return res.status(203).json({ message: "You have already completed the game" });
   } catch (error) {
-    console.error('Error fetching feedback:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error("Error fetching feedback:", error);
+    res.status(500).json({ error: "Internal Server Error" });
   }
-
 }
+
 
 
 
