@@ -11,27 +11,27 @@ router.route("/register").post(registerAdmin)
 router.route("/login").post(loginAdmin)
 
 
-router.route("/resetLeaderBoard").post(getAdmin,resetLeaderBoard)
+router.route("/resetLeaderBoard/:adminId").post(resetLeaderBoard)
 
 
 
-router.route("/getAdmin").get(getAdmin,getAdminTaskDetails)
-router.route("/getAllusers").get(getAdmin,getAllUsers)
-router.route("/getSessionusers/:functionName").get(getAdmin,getUsersAfterTaskStart)
+router.route("/getAdmin/:adminId").get(getAdminTaskDetails)
+router.route("/getAllusers/:adminId").get(getAllUsers)
+router.route("/getSessionusers/:functionName/:adminId").get(getUsersAfterTaskStart)
 
 
 // Timer
-router.route("/putTimer").post(getAdmin,putTimer)
+router.route("/putTimer/:adminId").post(putTimer)
 
-router.route("/addForm").post(getAdmin,addForm)
+router.route("/addForm/:adminId").post(addForm)
 
 
-router.route("/getForm").get(getAdmin,getForms)
-router.route("/getFormWithId").get(getAdmin,getFormsWithIds)
+router.route("/getForm/:adminId").get(getForms)
+router.route("/getFormWithId/:adminId").get(getFormsWithIds)
 
-router.route("/download").get(getAdmin,downloadData)
+router.route("/download/:adminId").get(downloadData)
 
-router.route("/resetResponse/:formId").delete(getAdmin,resetResponse)
+router.route("/resetResponse/:formId").delete(resetResponse)
 router.route("/updateQuestion").put(updateQuestion)
 router.route("/updateOption").put(updateOption)
 router.route("/delete/:formId").delete(deleteForm)

@@ -1,6 +1,6 @@
 import { prisma } from "../prisma/prisma.js";
 import jwt from 'jsonwebtoken';
-import  dotenv from "dotenv";
+import dotenv from "dotenv";
 
 dotenv.config();
 
@@ -9,39 +9,27 @@ const generateToken = (key) => {
 
 
   const options = {
-    expiresIn:process.env.TOKEN_EXPIRY, // Token expires in 1 hour
+    expiresIn: process.env.TOKEN_EXPIRY, // Token expires in 1 hour
   };
 
-  return jwt.sign(key, process.env.ACCESS_TOKEN_SECRET,options);
+  return jwt.sign(key, process.env.ACCESS_TOKEN_SECRET, options);
 };
 
 
 
 const UserAuth = async (req, res) => {
 
-  const { name, email, gender, age,uniqueCode } = req.body;
+  const { name, email, gender, age } = req.body;
 
-  console.log({ name, email, gender, age,uniqueCode });
+  console.log({ name, email, gender, age });
 
-  if (!name || !email || !uniqueCode) {
+  if (!name || !email) {
     return res.status(400).json({ message: "All fields are required" });
   }
 
   try {
-     // Find admin with uniqueCode
-    const admin = await prisma.admin.findFirst({
-     where: { uniqueCode },
-      });
 
-    console.log(admin);
-    
 
-    if (!admin) {
-      return res.status(404).json({ message: "Admin not found" });
-    }
-
-    // Generate a token for the user
-    
 
 
     // Check if the user exists by email
@@ -51,9 +39,8 @@ const UserAuth = async (req, res) => {
 
     // If user exists, attempt login
     if (existingUser) {
-      const token = generateToken({ adminId: admin.id});
-      console.log("This is the token",token);
-      
+
+
 
       // Check if the name matches the existing user
       if (existingUser.name !== name) {
@@ -64,7 +51,6 @@ const UserAuth = async (req, res) => {
       return res.status(200).json({
         user: existingUser,
         message: "Login successful",
-        token
       });
     }
 
@@ -83,15 +69,11 @@ const UserAuth = async (req, res) => {
       return res.status(400).json({ message: "Server busy, can't register you" });
     }
 
-    const token = generateToken({ adminId: admin.id,userId:newUser.id });
-
-   
 
     // Successful registration
     return res.status(200).json({
       user: newUser,
       message: "Registered successfully",
-      token
     });
 
   } catch (error) {
@@ -99,6 +81,32 @@ const UserAuth = async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
+
+const getAdminToken = async (req, res) => {
+
+  const { uniqueCode } = req.params;
+
+  console.log(uniqueCode);
+
+
+  try {
+    // Find admin with uniqueCode
+    const admin = await prisma.admin.findFirst({
+      where: { uniqueCode },
+    });
+
+    if (!admin) {
+      return res.status(205).json({ message: "UniqueCode doesn't exist" });
+    }
+
+    const token = generateToken({ adminId: admin.id });
+    return res.status(200).json({ token, message: "Welcome to the game" });
+  }
+  catch (error) {
+    console.error('Error during admin authentication:', error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+}
 
 
 // Update Points
@@ -165,12 +173,12 @@ const updateUserPoints = async (req, res) => {
 };
 
 const getLeaderBoard = async (req, res) => {
-  
-  
-  const {  userId } = req.params;
+
+
+  const { userId } = req.params;
   const getAdmin = req.adminId
 
-  
+
 
   try {
     // Step 1: Fetch the task based on adminId and functionToRun
@@ -184,8 +192,8 @@ const getLeaderBoard = async (req, res) => {
         updatedAt: true,  // Use updatedAt for comparison
       },
     });
-        
-    
+
+
     if (!task) {
       console.log('Task not found');
       return res.status(404).json({
@@ -283,14 +291,14 @@ const markOption = async (req, res) => {
 
   if ((!formId || !questionId || !optionIds) || (optionIds.length === 0)) {
     console.log("Every Field required");
-    return res.status(400).json({ message: 'All fields required'});
+    return res.status(400).json({ message: 'All fields required' });
   }
 
-  
+
   if (typeof isSurvey !== 'boolean') {
     console.log(isSurvey);
     return res.status(406).json({ message: 'Type of Form Required' });
-}
+  }
 
 
   try {
@@ -306,7 +314,7 @@ const markOption = async (req, res) => {
 
     if (existingMark) {
       console.log({ message: 'Question already marked by user.', })
-      return res.status(202).json({ message: 'Question already marked by user.',});
+      return res.status(202).json({ message: 'Question already marked by user.', });
     }
 
     // 2. Mark the question and update the markedCount of the option 
@@ -356,9 +364,10 @@ const markOption = async (req, res) => {
 
     if (markedQuestionsByUser === totalQuestions) {
       // Retrieve the user and update formDone when all questions are marked
-      const user =   await prisma.user.update({
+      const user = await prisma.user.update({
         where: { id: userId },
-        data: { spinLeft: { increment: 10 } },});
+        data: { spinLeft: { increment: 10 } },
+      });
 
       const userFormRelation = await prisma.userForm.create({
         data: {
@@ -366,7 +375,7 @@ const markOption = async (req, res) => {
           formId
         }
       })
-         
+
 
       if (!userFormRelation) {
         console.log("Error while updating User spinLeft");
@@ -386,10 +395,10 @@ const markOption = async (req, res) => {
       select: { id: true }
     });
 
-   
 
- 
-    console.log("Fetched Options From DB ",correctOption);
+
+
+    console.log("Fetched Options From DB ", correctOption);
 
 
 
@@ -398,7 +407,7 @@ const markOption = async (req, res) => {
 
       return res.status(202).json({ message: "No correct answers available for this question.", flag: true });
     }
-    const correctOptionIds = correctOption.map(e => e.id); 
+    const correctOptionIds = correctOption.map(e => e.id);
 
 
     // Separate the user-selected options into correct and incorrect arrays
@@ -412,9 +421,9 @@ const markOption = async (req, res) => {
       console.log("Answer not matched");
       return res.status(200).json({
         message: 'Not all answers matched',
-        correct:correctSelected,
-        answers:correctOptionIds,
-        incorrect:incorrectSelected,
+        correct: correctSelected,
+        answers: correctOptionIds,
+        incorrect: incorrectSelected,
         allAnswersMatched: false, // Not all answers matched
       });
     }
@@ -424,9 +433,9 @@ const markOption = async (req, res) => {
 
     return res.status(200).json({
       message: 'All answers matched',
-      correct:correctSelected,
-      answers:correctOptionIds,
-      incorrect:incorrectSelected,
+      correct: correctSelected,
+      answers: correctOptionIds,
+      incorrect: incorrectSelected,
       allAnswersMatched: true, // All answers matched
     });
 
@@ -451,7 +460,7 @@ const getUncompletedForm = async (req, res) => {
   if (!adminId) {
     return res.status(400).json({ message: 'Admin ID is required' });
   }
-  
+
 
   try {
     // Fetch the forms created by the admin
@@ -460,17 +469,16 @@ const getUncompletedForm = async (req, res) => {
       select: { id: true },
     });
 
-    console.log(forms);
-    
-    
-    
+
+
     if (!forms) {
       return res.status(404).json({ message: 'No forms found for the given admin.' });
     }
-    
+
+
     // Extract form IDs created by the admin
     const formIds = forms.map((form) => form.id);
-    
+
 
     // Fetch completed forms for the user
     const user = await prisma.user.findUnique({
@@ -478,13 +486,12 @@ const getUncompletedForm = async (req, res) => {
       select: { userForms: { select: { formId: true } } },
     });
 
-    console.log(formIds);
-    
+
 
     const completedFormIds = user?.userForms?.map((uf) => uf.formId) || [];
-    
-    console.log(completedFormIds);
-    
+
+
+
     // Find the first uncompleted form ID
     const uncompletedFormId = formIds.find((formId) => !completedFormIds.includes(formId));
 
@@ -492,8 +499,7 @@ const getUncompletedForm = async (req, res) => {
       return res.status(206).json({ message: 'No uncompleted forms found' });
     }
 
-    console.log( uncompletedFormId );
-    
+
 
     // Fetch details of the first uncompleted form
     const form = await prisma.form.findUnique({
@@ -542,13 +548,13 @@ const getUncompletedForm = async (req, res) => {
         })),
     };
 
-    if(!formattedForm){
+    if (!formattedForm) {
       return res.status(404).json({ message: 'No uncompleted forms found' });
     }
-    
-    console.log("This is your form : ",{formId:uncompletedFormId,form:formattedForm});
-    
-    res.status(200).json({formId:uncompletedFormId,form:formattedForm});
+
+    console.log("This is your form : ", { formId: uncompletedFormId, form: formattedForm });
+
+    res.status(200).json({ formId: uncompletedFormId, form: formattedForm });
   } catch (error) {
     console.error('Error fetching uncompleted form IDs:', error);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -558,7 +564,7 @@ const getUncompletedForm = async (req, res) => {
 
 
 const createFeedback = async (req, res) => {
-  const {  userId } = req.params;
+  const { userId } = req.params;
   const adminId = req.adminId
   const { stars, suggestion, abtTheGame, notLiked } = req.body;
 
@@ -680,4 +686,4 @@ async function checkUserFeedback(req, res) {
 
 
 
-export { UserAuth, updateUserPoints, getLeaderBoard, getUncompletedForm, markOption, createFeedback,checkUserFeedback }
+export { UserAuth, getAdminToken, updateUserPoints, getLeaderBoard, getUncompletedForm, markOption, createFeedback, checkUserFeedback }

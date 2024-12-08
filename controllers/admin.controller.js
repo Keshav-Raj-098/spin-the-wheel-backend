@@ -3,17 +3,9 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import  dotenv from "dotenv";
 import { Parser } from 'json2csv';
+import { type } from "os";
 
 dotenv.config();
-// Function to generate a token
-const generateToken = (adminId) => {
-  const payload = { adminId };
-  const options = {
-    expiresIn: process.env.TOKEN_EXPIRY, // Token expires in 1 hour
-  };
-
-  return jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, options);
-};
 
 // Function to create an admin
 const registerAdmin = async (req, res) => {
@@ -52,7 +44,6 @@ const registerAdmin = async (req, res) => {
 
     
     
-    const token = generateToken(newAdmin.id);
     
      const timerTask1 = await prisma.task.create({
       data: {
@@ -73,7 +64,7 @@ const registerAdmin = async (req, res) => {
      }
 
 
-    res.status(201).json({ admin:newAdmin, token });
+    res.status(201).json({ admin:newAdmin});
   } catch (error) {
     console.error('Error creating admin:', error);
     res.status(500).json({ message: 'Internal server error' });
@@ -102,13 +93,10 @@ const loginAdmin = async (req, res) => {
       return res.status(401).json({ message: 'Invalid username or password' });
     }
 
-    const token = generateToken(admin.id);
-
-    console.log(token);
     
 
     // Successful login
-    return res.status(200).json({ message: 'Login successful', admin, token });
+    return res.status(200).json({ message: 'Login successful', admin,});
   } catch (error) {
     console.error('Error logging in admin:', error);
     return res.status(500).json({ message: 'Internal server error' });
@@ -117,7 +105,7 @@ const loginAdmin = async (req, res) => {
 
 // Reset Leaderboard **************************************
 const resetLeaderBoard = async (req, res) => {
-  const adminId = req.adminId
+  const {adminId} = req.params
 
    console.log(adminId);
    
@@ -173,9 +161,9 @@ const resetLeaderBoard = async (req, res) => {
 
 // get all users ******************************************
 const getAllUsers = async (req, res) => {
-  const adminId  = req.adminId;
+  const {adminId}  = req.params;
 
-  console.log(adminId);
+ 
   
   try {
     const forms = await prisma.form.findMany({
@@ -222,12 +210,8 @@ const getAllUsers = async (req, res) => {
 
 const addForm = async (req, res) => {
 
-  const adminId  = req.adminId;
+  const {adminId } = req.params;
   const { formData, isSurvey, formName } = req.body;
-  
-  console.log(adminId);
-  
-  console.log(req.body);
 
   try {
     // Validation
@@ -412,9 +396,9 @@ const updateQuestion = async (req, res) => {
 
 
 const getForms = async (req, res) => {
-  const adminId  = req.adminId; // Assuming you have admin ID from the authenticated user
+  const {adminId}  = req.params; // Assuming you have admin ID from the authenticated user
     
-  console.log("AdminId",adminId)
+  // console.log("AdminId",adminId)
   try {
     const forms = await prisma.form.findMany({
       where: {
@@ -447,6 +431,7 @@ const getForms = async (req, res) => {
     // Format the forms without `createdAt` and `updatedAt`
     const formattedForms = forms.map(form => ({
       name: form.name,
+      type: form.isSurvey ? 'Survey' : 'Quiz',
       id:form.id,
       questions: form.questions.map(question => ({
         question: question.question,
@@ -466,7 +451,7 @@ const getForms = async (req, res) => {
 
 
 const getFormsWithIds = async (req, res) => {
-  const adminId  = req.adminId; // Assuming you have admin ID from the authenticated user
+  const {adminId}  = req.params; // Assuming you have admin ID from the authenticated user
 
   try {
     const forms = await prisma.form.findMany({
@@ -488,6 +473,7 @@ const getFormsWithIds = async (req, res) => {
     const formattedForms = forms.map(form => ({
       formid: form.id,
       name: form.name,
+      type: form.isSurvey ? 'Survey' : 'Quiz',
       form: form.questions.map(question => ({
         question: question.question,
         questionId: question.id,
@@ -600,9 +586,8 @@ const deleteForm = async (req, res) => {
 
 
 const getUsersAfterTaskStart = async (req, res) => {
-  const { functionName } = req.params;
+  const { functionName,adminId } = req.params;
 
-  const adminId = req.adminId;
 
   try {
     // Step 1: Find the task using adminId and functionToRun
@@ -687,7 +672,7 @@ const getUsersAfterTaskStart = async (req, res) => {
 
 
 const getAdminTaskDetails = async (req, res) => {
-  const adminId = req.adminId;
+  const {adminId} = req.params;
 
   try {
     // Fetch the admin with the lastSessionWinners and all associated tasks
@@ -822,7 +807,7 @@ async function resetResponse(req, res) {
   }
 }
 const downloadData = async (req, res) => {
-  const adminId = req.adminId;
+  const {adminId} = req.params;
 
   try {
     // Fetch forms for the admin
